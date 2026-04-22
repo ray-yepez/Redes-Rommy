@@ -1,0 +1,66 @@
+IDE: VSCode
+Lenguaje de Programación: Python (versión 3.13)
+
+BIBLIOTECAS EXTERNAS
+
+Instalar pygame ejecutando en el terminal (pip install pygame)
+
+BIBLIOTECAS INTEGRADAS EN EL LENGUAJE PYTHON
+
+sys
+random
+socket
+threading
+time
+json
+struct
+pickle
+itertools
+os
+
+Si el programa no las reconoce, instalar con pip install.
+
+EXTENSIONES DE IDE INSTALABLES DESDE VSCODE
+
+pylance
+python
+python debugger
+python environments
+
+
+RECOMENDACIONES
+
+Para realizar la conexión se recomienda utilizar una conexión por cable. 
+Ante cualquier duda del juego, en la pantalla principal se encuentras las reglas.
+
+
+PASOS PARA INICIALIZAR EL JUEGO
+
+1. Abrir VSCode 
+2. En "file" seleccionar "Open Folder"
+3. Seleccionar la carpeta 'RUMMY500-EQ1'
+4. Posicionarse en 'main.py'
+5. En la esquina superior derecha, presionar "Run Python File"
+
+PASOS PARA CREAR UNA SALA
+
+1. Seleccionar "JUGAR" en la pantalla principal
+2. Seleccionar "CREAR SALA"
+3. Ingresar Nombre de la sala, Nombre del jugador (Por defecto se asignara el nombre 'HOST'), Contraseña (opcional) y cantidad de jugadores (Por defecto: 7 jugadores)
+4. Seleccionar crear sala
+
+PASOS PARA UNIRSE A UNA SALA
+
+1. Seleccionar "JUGAR" en la pantalla principal
+2. Seleccionar "UNIRSE" 
+3. Seleccionar la sala disponible (asegurarse de una vez seleccionado, se genere un cuadro verde alrededor del servidor), Ingresar nombre (por defecto se asignara el nombre 'Jugador N ( Donde 'N' es el numero de jugadores dentro de la sala mas uno sin contar el HOST) e ingresar contraseña (si el servidor posee una)
+4. Seleccionar "CONECTAR"
+
+PASOS PARA INICIAR EL JUEGO
+
+Una vez los jugadores se hayan unido a la partida, se deberán seguir los siguientes pasos:
+1. El 'HOST'  debe iniciar la Ronda presionando "INICIAR PARTIDA"
+2. Los demás jugadores deberán esperar 3 segundos antes de iniciar la partida con el mismo botón
+3. DIVERTIRSE
+
+
