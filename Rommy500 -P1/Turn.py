@@ -18,6 +18,7 @@ def drawCard(player, roundPlayed, fromDiscards = False):
 
 def discardCard(player, roundPlayed, card):
     roundPlayed.hands[player.playerId].remove(card)  #Quitamos la carta de la mano del jugador
+    card.discarded_by = player.playerId #Marcamos quién descartó la carta
     roundPlayed.discards.append(card)  #Añadimos la carta al montón de descartes
 
 def refillDeck(roundPlayed):
@@ -34,7 +35,7 @@ def refillDeck(roundPlayed):
         lastCard = roundPlayed.discards[-1]  #Guardamos la última carta del montón de descartes
         roundPlayed.discards = [lastCard] #roundPlayed.discards[-1:]  #Dejamos la última carta del montón de descartes como la única carta en el montón de descartes
         print("SOLO SE CICLÓ EL MAZO CON LAS CARTAS QUE SE QUEMAROOOOOOOOOOOOOOOOOOOOOOOOON!")
-        if roundPlayed.refillCounter >= 3:
+        if roundPlayed.refillCounter % 3 == 0:
             newDeck = Deck()
             newDeck.shuffleCards()
             roundPlayed.pile.extend(newDeck.cards)

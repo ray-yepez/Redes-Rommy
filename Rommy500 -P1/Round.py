@@ -32,9 +32,10 @@ class Round:
     def dealCards(self):
         for _ in range(10):
             for player in self.players:
-                card = self.deck.drawCard()
-                self.hands[player.playerId].append(card)
-                player.playerHand.append(card) #Añadimos la carta a la mano del jugador correspondiente
+                if not player.isSpectator:  # Solo repartir si NO es espectador
+                    card = self.deck.drawCard()
+                    self.hands[player.playerId].append(card)
+                    player.playerHand.append(card) #Añadimos la carta a la mano del jugador correspondiente
     
     def discardsAndTableDeck(self):
         self.pile = self.deck.cards[:] #Copiamos las cartas del mazo a la pila

@@ -2,6 +2,7 @@ import pygame
 import sys
 from ui import UIManager
 from network import NetworkManager
+from volumen import ControlVolumen
 
 
 def main():
@@ -14,6 +15,7 @@ def main():
     pygame.mixer.init()  
     pygame.mixer.music.load("assets/sonido/musica_fondo.mp3")  
     pygame.mixer.music.play(-1)
+    ctrl_volumen=ControlVolumen()
 
     running = True
     while running:
@@ -50,6 +52,8 @@ def main():
             running = False
         else:
             ui_manager.update()
+            ctrl_volumen.actualizar_y_dibujar()          
+            
 
     pygame.quit()
     sys.exit()

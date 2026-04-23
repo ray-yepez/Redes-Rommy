@@ -1024,8 +1024,10 @@ o Descartar: Colocar una carta boca arriba en el centro de la mesa para finaliza
 
     def lanzar_juego_ui2(self):
         import ui2
-        pygame.quit()  # Cierra la ventana actual de Pygame
+        #pygame.quit()  # Cierra la ventana actual de Pygame
         ui2.main()     # Lanza el juego principal de ui2.py
+        self.SCREEN = pygame.display.set_mode((self.SCREEN_WIDTH, self.SCREEN_HEIGHT), pygame.RESIZABLE)
+        pygame.display.set_caption("Menu Principal")
     
     def play_click(self):
         self.click_sound.play()
@@ -1033,6 +1035,9 @@ o Descartar: Colocar una carta boca arriba en el centro de la mesa para finaliza
 
     def handle_events(self):
 
+        if not pygame.get_init():
+            return False
+        
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 return False
@@ -1180,7 +1185,7 @@ o Descartar: Colocar una carta boca arriba en el centro de la mesa para finaliza
                             else:
                                 print("Se necesitan al menos dos jugadores")
                         else:
-                            msg = self.network_manager.get_msgStartGame() #self.process_received_messages()
+                            msg = self.network_manager.get_msgStartGame()
                             print(f"Lo que esta en el msg del lobby PLAY_BUTTON {msg}")
                             if msg == "launch_ui2":
 
@@ -1260,7 +1265,11 @@ o Descartar: Colocar una carta boca arriba en el centro de la mesa para finaliza
                 data = self.network_manager.receivedData
                 self.network_manager.receivedData = None  # Limpiar despues de procesar
 
-            print(f"Procesando mensaje recibido en Ui.py: {data}")
+            print(f"Procesando mensaje recibido en Ui.py:")
+            if type(data)==dict:
+                print(f"TIPO: {data.get("type")}")
+            elif type(data)==str:
+                print(f"TIPO: CHAT")
             
             # Si es un mensaje para iniciar partida
             if isinstance(data,dict) and data.get("type") == "START_GAME":

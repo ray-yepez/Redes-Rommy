@@ -22,8 +22,8 @@ class Card:
     def __hash__(self):
         return hash(self.id)
     
-    #def __repr__(self):
-        #return self.__str__()
+    def __repr__(self):
+        return self.__str__()
 
         
     def numValue(self): #Devuelve el valor numérico de la Carta, donde 2 es el más bajo y A es el más alto

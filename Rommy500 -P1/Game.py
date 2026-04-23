@@ -2,11 +2,15 @@ import random
 from Turn import refillDeck, drawCard
 def electionPhase(players, deck):
     print("Fase de Elección")
-    availableCards = deck.drawInElectionPhase(len(players))  #Sacamos las Cartas para la fase de elección
+    active_players = [p for p in players if not p.isSpectator]
+    if not active_players:
+        return players # Casos raros donde todos sean espectadores
+
+    availableCards = deck.drawInElectionPhase(len(active_players))  #Sacamos las Cartas para la fase de elección
     random.shuffle(availableCards)  #Mezclamos las Cartas que se van a elegir para que no estén en el mismo orden
 
     elections = {}  #Creamos un diccionario para almacenar las elecciones de los jugadores antes de la ronda
-    for player, Card in zip(players, availableCards):
+    for player, Card in zip(active_players, availableCards):
         elections[player] = Card  #Asignamos la Carta elegida a cada jugador
         print(f"{player} ha elegido la Carta: {Card}") #Indicamos qué Carta fue elegida
 
@@ -17,6 +21,11 @@ def electionPhase(players, deck):
         reverse = True
     )
     playerOrder = [player for player, _ in order]  #Obtenemos el orden de los jugadores según sus elecciones
+    
+    # Agregar los espectadores al final de la lista para mantenerlos en el juego (aunque no jueguen)
+    spectators = [p for p in players if p.isSpectator]
+    playerOrder.extend(spectators)
+
     print("Orden de los jugadores:", playerOrder)
     return playerOrder
     #Devolvemos el orden de los jugadores para la ronda
@@ -81,27 +90,6 @@ def mainGameLoop(screen, playersInOrder, deck, discard_pile, nombre="", zona_car
         if sourceAction == "Bajarse":
             current_player.getOff(zona_cartas[0], zona_cartas[1])
 
-        # --- 3. Insertar carta ---
-        #decision = input("¿Desea insertar una carta en una jugada existente? (s/n): ").strip().lower()
-        #if sourceAction == "Insertar":
-        #Aquí el método me debería recibir el nombre del jugador al que se le va a insertar la carta
-            #target_player_name = input("¿A qué jugador desea insertarle la carta?: ")
-            #target_player = next((p for p in playersInOrder if p.playerName == target_player_name), None)
-            #if target_player and target_player.playMade:
-                # Suponiendo que la interfaz selecciona la carta
-                #card_index = int(input("Índice de la carta en mano: "))
-                #card = current_player.playerHand.pop(card_index)
-                #target_play_index = int(input("Índice de la jugada del jugador objetivo: "))
-                #current_player.insertCard(target_player, target_play_index, card)
-
-        # --- 4. Descartar carta ---
-        #card_index = int(input("Índice de la carta a descartar: "))
-        #card_descartada = current_player.playerHand.pop(card_index)
-        #discard_pile.append(card_descartada)
-        #print(f"{current_player.playerName} descarta {card_descartada}.")
-        #current_player.isHand = False
-
-        # --- 5. Ofrecer carta a los demás jugadores ---
         for p in turn_order:
             if not p.isHand and p != current_player:
                 respuesta = p.playerBuy
