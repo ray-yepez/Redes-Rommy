@@ -45,8 +45,8 @@
    - Usa variables de entorno o secretos gestionados por GitHub Actions / CI.
    - Cambios en infraestructura (Docker, K8s, routers, firewalls) deben pasar por revisión.
 
->[!note] Nota:
-> El idioma para los mensajes de commit y ramas está por defninirse, pero dado que es de uso interno puede ser en español. Siempre que sea descriptivo y profesional.
+> 📝 Nota:
+> En el ambito profesional se suelen escribir los mensajes de commit y ramas en inglés. Sin embargo, al ser un repositorio de uso interno, podríamos escribirlas en español, siempre y cuando sean descriptivos y profesionales.
 
 ---
 
@@ -128,7 +128,7 @@ El tablero Kanban es la fuente única de verdad para el seguimiento de tareas de
 ---
 ## 📬 Contacto y Soporte
 
-- 🌐️ Líder de departamento: @Valentin-Or 
+- 🌐️ Líder de departamento: [@Valentin-Or](https://github.com/Valentin-Or) 
 - 🔄 Scrum Master:
 - 👤 Product Owner: 
 
