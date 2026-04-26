@@ -1,4 +1,4 @@
-# 🌐 Departamento de Redes – [Nombre del Videojuego]
+# 🌐 Departamento de Redes 
 
 > Este departamento debe contar con personas que estén dispuestas a investigar mucho, ya que los errores y complicaciones de redes suelen ser muy pesados ***(10 personas)***
 ---
