@@ -98,7 +98,7 @@ class NetworkManager:
         finally:
             if timeout is not None:
                 sock.settimeout(original_timeout)
-
+               
     def getLocalIP(self):
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -106,9 +106,8 @@ class NetworkManager:
             ip = s.getsockname()[0]
             s.close()
             return ip
-        except:
-            return "127.0.0.1"
-
+        except (socket.error, OSError, ConnectionError):
+            return "127.0.0.1" #Local IP
     def start_server(self, gameName, password, max_players, name_sala):
         self.host = self.getLocalIP()
         try:
@@ -426,8 +425,8 @@ class NetworkManager:
         """Escucha anuncios de servidores en la red"""
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            s.bind(('0.0.0.0', self.broadcast_port))
-            s.settimeout(1)
+            s.bind(('', self.broadcast_port))
+            s.settimeout(1.0)
 
             start_time = time.time()
             while time.time() - start_time < timeout:
@@ -448,32 +447,25 @@ class NetworkManager:
                     continue
                 except ImportError:
                     break
-                
-                
-                
     def broadcast_server(self):
         """Envía broadcast anunciando el servidor"""
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
-            s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
-            print(f"self.running_broadcast {self.running_broadcast}")
-            print(f"self.server::  {self.server}")
-
-            while self.running_broadcast and self.server:
-                try:
-                    # Actualizar datos del servidor para transmitir
-                    # Actualizar número de jugadores
-                    self.currentServer['currentPlayers'] = len(self.connected_players)
-                    tServer = self.currentServer.copy()
-                    del tServer['password']
-                    # Enviar datos del servidor
-                    data = json.dumps(tServer).encode('utf-8')
-                    s.sendto(data, ('<broadcast>', self.broadcast_port))
-                    print("Datos Tansmitiendose ", data )
-                    time.sleep(3)  #3 segundos
-                except ImportError:
-                    print("No se pudo hacer la transmisión...")
-                    break
-
+         s.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+         while self.running_broadcast and self.server:
+            try:
+                self.currentServer['currentPlayers'] = len(self.connected_players)
+                tServer = self.currentServer.copy()
+                if 'password' in tServer: del tServer['password']
+                
+                # Forzar que la IP enviada sea la correcta
+                tServer['ip'] = self.host 
+                
+                data = json.dumps(tServer).encode('utf-8')
+                s.sendto(data, ('<broadcast>', self.broadcast_port))
+                time.sleep(3)
+            except Exception as e:
+                print(f"Error en broadcast: {e}")
+                break
     def stop_broadcast(self):
         """Detiene solo el broadcast"""
         self.running_broadcast = False

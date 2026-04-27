@@ -1,4 +1,4 @@
-# 🌐 Departamento de Redes – [Nombre del Videojuego]
+# 🌐 Departamento de Redes 
 
 > Este departamento debe contar con personas que estén dispuestas a investigar mucho, ya que los errores y complicaciones de redes suelen ser muy pesados ***(10 personas)***
 ---
@@ -27,8 +27,13 @@
 ## 🛠️ Normas para Contribuir
 
 1. **Flujo de trabajo**
-   - No se permiten pushes directos a `main`.
-   - Crea ramas descriptivas siguiendo el formato: `tipo/descripcion-corta` (ej. `feat/matchmaking-regional`, `fix/packet-loss-rpc`) .
+   - No se permiten pushes directos a `main`. 
+   - Debes crear ramas descriptivas y trabajar desde allí, siguiendo el formato: `tipo/descripcion-corta` (ej. `feat/matchmaking-regional`, `fix/packet-loss-rpc`). Puedes hacerlo desde Github y luego enlazarlo a tu rama local o crearla desde tu repositorio local y publicar tu rama **(más sencillo)**.
+   - ❗⚠ Si comenzaste a trabajar desde la rama principal por accidente en tu repositorio local y no quieres perder tus cambios, sigue estos pasos:
+      1. En la consola utiliza el comando `git stash`
+      2. Crea una rama nueva y entra en la rama. Puedes usar `git checkout -b nombre-rama` o puedes crear la rama primero con `git branch nombre-rama` y luego entrar con `git switch nombre-rama`.
+      3. Utiliza `git stash pop` para traer todos los cambios que guardaste a la rama.
+      4. Sigue trabajando como de costumbre dentro de la rama.
    - Todas las incorporaciones se realizan mediante **Pull Request (PR)**.
 
 2. **Pull Requests**   - Incluye título claro y descripción detallada del cambio.
@@ -45,8 +50,8 @@
    - Usa variables de entorno o secretos gestionados por GitHub Actions / CI.
    - Cambios en infraestructura (Docker, K8s, routers, firewalls) deben pasar por revisión.
 
->[!note] Nota:
-> El idioma para los mensajes de commit y ramas está por defninirse, pero dado que es de uso interno puede ser en español. Siempre que sea descriptivo y profesional.
+> 📝 Nota:
+> En el ambito profesional se suelen escribir los mensajes de commit y ramas en inglés. Sin embargo, al ser un repositorio de uso interno, podríamos escribirlas en español, siempre y cuando sean descriptivos y profesionales.
 
 ---
 
@@ -128,7 +133,7 @@ El tablero Kanban es la fuente única de verdad para el seguimiento de tareas de
 ---
 ## 📬 Contacto y Soporte
 
-- 🌐️ Líder de departamento: @Valentin-Or 
+- 🌐️ Líder de departamento: [@Valentin-Or](https://github.com/Valentin-Or) 
 - 🔄 Scrum Master:
 - 👤 Product Owner: 
 
