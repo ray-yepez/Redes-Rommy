@@ -1267,7 +1267,7 @@ o Descartar: Colocar una carta boca arriba en el centro de la mesa para finaliza
 
             print(f"Procesando mensaje recibido en Ui.py:")
             if type(data)==dict:
-                print(f"TIPO: {data.get("type")}")
+                print(f"TIPO: {data.get('type')}")
             elif type(data)==str:
                 print(f"TIPO: CHAT")
             

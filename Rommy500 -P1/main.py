@@ -7,13 +7,13 @@ from volumen import ControlVolumen
 
 def main():
     pygame.init()
-    
-    SCREEN_WIDTH, SCREEN_HEIGHT = 1280, 720
+
+    SCREEN_WIDTH, SCREEN_HEIGHT = 1024, 550
     network_manager = NetworkManager()
     ui_manager = UIManager(SCREEN_WIDTH, SCREEN_HEIGHT, network_manager)
 
-    pygame.mixer.init()  
-    pygame.mixer.music.load("assets/sonido/musica_fondo.mp3")  
+    pygame.mixer.init()
+    pygame.mixer.music.load("assets/sonido/musica_fondo.mp3")
     pygame.mixer.music.play(-1)
     ctrl_volumen=ControlVolumen()
 
@@ -60,6 +60,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-{
-    
-}
