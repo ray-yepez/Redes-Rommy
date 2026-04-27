@@ -27,8 +27,13 @@
 ## 🛠️ Normas para Contribuir
 
 1. **Flujo de trabajo**
-   - No se permiten pushes directos a `main`.
-   - Crea ramas descriptivas siguiendo el formato: `tipo/descripcion-corta` (ej. `feat/matchmaking-regional`, `fix/packet-loss-rpc`) .
+   - No se permiten pushes directos a `main`. 
+   - Debes crear ramas descriptivas y trabajar desde allí, siguiendo el formato: `tipo/descripcion-corta` (ej. `feat/matchmaking-regional`, `fix/packet-loss-rpc`). Puedes hacerlo desde Github y luego enlazarlo a tu rama local o crearla desde tu repositorio local y publicar tu rama **(más sencillo)**.
+   - ❗⚠ Si comenzaste a trabajar desde la rama principal por accidente en tu repositorio local y no quieres perder tus cambios, sigue estos pasos:
+      1. En la consola utiliza el comando `git stash`
+      2. Crea una rama nueva y entra en la rama. Puedes usar `git checkout -b nombre-rama` o puedes crear la rama primero con `git branch nombre-rama` y luego entrar con `git switch nombre-rama`.
+      3. Utiliza `git stash pop` para traer todos los cambios que guardaste a la rama.
+      4. Sigue trabajando como de costumbre dentro de la rama.
    - Todas las incorporaciones se realizan mediante **Pull Request (PR)**.
 
 2. **Pull Requests**   - Incluye título claro y descripción detallada del cambio.
