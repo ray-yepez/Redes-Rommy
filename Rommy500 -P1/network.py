@@ -100,6 +100,7 @@ class NetworkManager:
                 sock.settimeout(original_timeout)
                
     def getLocalIP(self):
+        """Obtiene la IP local de la computadora"""
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             s.connect(("8.8.8.8", 80))
@@ -416,7 +417,7 @@ class NetworkManager:
         self.servers = []
 
         # Escuchar por servidores
-        listenThread = threading.Thread(target=self.servers, args=(timeout,), daemon=True)
+        listenThread = threading.Thread(target=self.listenForServers, args=(timeout,), daemon=True)
         listenThread.start()
 
         print("asi va quedando la lista de servidores!", self.servers)
