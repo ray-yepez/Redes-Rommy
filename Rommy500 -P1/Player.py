@@ -2,7 +2,7 @@ import pygame
 from Round import Round
 from Turn import drawCard
 from Card import Card
-from itertools import combinations
+from itertools import combinations, groupby
 class Player:
 
     def __init__(self, id, name):
@@ -782,3 +782,111 @@ class Player:
             self.isSpectator = True
             print(f"Jugador {self.playerName} ha alcanzado {self.playerPoints} puntos y ahora es ESPECTADOR.")
         return totalPoints
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# FUNCIÓN DE ORDENAMIENTO AUTOMÁTICO DE LA MANO
+# ─────────────────────────────────────────────────────────────────────────────
+
+def recalcular_posiciones_mano(player, WIDTH=1200, BASE_Y=680):
+    """
+    Recalcula player.playerCardsPos con pygame.Rect centrados horizontalmente.
+
+    Parámetros
+    ----------
+    player  : objeto Player
+    WIDTH   : ancho de la pantalla (px). Por defecto 1200.
+    BASE_Y  : coordenada Y del borde superior de las cartas en pantalla.
+              Ajusta este valor si tu zona de mano está en otra posición.
+    """
+    n = len(player.playerHand)
+    if n == 0:
+        player.playerCardsPos = {}
+        return
+
+    CARD_W = 72
+    CARD_H = 106
+
+    # Solapamiento dinámico igual que en draw_player_hand
+    if n > 1:
+        base_sep  = int(CARD_W * 1.25)
+        min_sep   = int(CARD_W * 0.65)
+        if n <= 6:
+            sep = base_sep
+        elif n >= 12:
+            sep = min_sep
+        else:
+            sep = int(base_sep - (base_sep - min_sep) * (n - 6) / 6)
+        total_w = CARD_W + (n - 1) * sep
+        if total_w > WIDTH:
+            sep = max(8, (WIDTH - CARD_W) // (n - 1))
+    else:
+        sep = 0
+
+    total_w = CARD_W + (n - 1) * sep
+    start_x = (WIDTH - total_w) // 2
+
+    player.playerCardsPos = {}
+    for i, card in enumerate(player.playerHand):
+        x = start_x + i * sep
+        player.playerCardsPos[card] = pygame.Rect(x, BASE_Y, CARD_W, CARD_H)
+
+
+def ordenar_mano(player, modo, WIDTH=1200, BASE_Y=680):
+    """
+    Ordena la mano del jugador (player.playerHand) y recalcula playerCardsPos.
+
+    Modos disponibles
+    -----------------
+    'Sets'  (Tríos)    → agrupa por valor (Card.values) y luego por palo.
+                          Usa itertools.groupby para mantener grupos contiguos.
+    'Runs'  (Escaleras) → agrupa por palo (Card.types) y dentro de cada palo
+                          ordena ascendentemente por valor numérico.
+                          Usa itertools.groupby para mantener grupos contiguos.
+
+    En ambos modos los Jokers se mueven al final para no interrumpir secuencias.
+
+    Parámetros
+    ----------
+    player  : objeto Player con atributos playerHand y playerCardsPos.
+    modo    : str, 'Sets' o 'Runs'.
+    WIDTH   : ancho de pantalla en píxeles (para centrar los Rect). Default 1200.
+    BASE_Y  : coordenada Y de la fila de cartas en pantalla. Default 680.
+    """
+
+    jokers   = [c for c in player.playerHand if c.joker]
+    normales = [c for c in player.playerHand if not c.joker]
+
+    if modo == 'Sets':
+        # ── Paso 1: ordenar por índice de valor para que groupby agrupe valores iguales
+        normales.sort(key=lambda c: Card.values.index(c.value))
+
+        # ── Paso 2: dentro de cada grupo de igual valor, ordenar por palo
+        resultado = []
+        for _valor, grupo in groupby(normales, key=lambda c: c.value):
+            grupo_ordenado = sorted(
+                grupo,
+                key=lambda c: Card.types.index(c.type) if c.type in Card.types else 0
+            )
+            resultado.extend(grupo_ordenado)
+        normales = resultado
+
+    elif modo == 'Runs':
+        # ── Paso 1: ordenar por palo primero, luego por valor numérico dentro del palo
+        normales.sort(key=lambda c: (
+            Card.types.index(c.type) if c.type in Card.types else 0,
+            Card.values.index(c.value)
+        ))
+
+        # ── Paso 2: agrupar por palo con groupby y reordenar ascendentemente
+        resultado = []
+        for _palo, grupo in groupby(normales, key=lambda c: c.type):
+            grupo_ordenado = sorted(grupo, key=lambda c: Card.values.index(c.value))
+            resultado.extend(grupo_ordenado)
+        normales = resultado
+
+    # ── Jokers siempre al final
+    player.playerHand[:] = normales + jokers
+
+    # ── Recalcular coordenadas Pygame
+    recalcular_posiciones_mano(player, WIDTH=WIDTH, BASE_Y=BASE_Y)

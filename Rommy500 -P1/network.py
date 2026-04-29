@@ -243,8 +243,7 @@ class NetworkManager:
                     break
                 with self.lock:
                     self.received_data = received_data
-                # Procesar mensajes (ejemplo, chat, movimientos, etc.)
-                # Aquí puedes agregar la lógica específica
+                
         finally:
             self.handle_disconnect(player_id, namePlayer)
 
@@ -271,64 +270,7 @@ class NetworkManager:
                 self.connected_players = [p for p in self.connected_players if p[3] != player_id]
                 self.currentServer['currentPlayers'] = len(self.connected_players)
 
-    def broadcast_message(self, message_dict):
-        data = pickle.dumps(message_dict)
-        for p_id, info in self.players_by_id.items():
-            if info['active']:
-                try:
-                    info['conn'].send(data)
-                except:
-                    pass
-
-    def start_health_check(self, interval=60):
-        def health_check_loop():
-            while self.running:
-                time.sleep(interval)
-                self.check_connection_health()
-        threading.Thread(target=health_check_loop, daemon=True).start()
-
-    def check_connection_health(self):
-        # Similar lógica para enviar PING y verificar PONG
-        pass  # Puedes mantener la lógica anterior o ajustarla
-
-    def connectToServer(self, server):
-        try:
-            self.player = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            self.player.connect((server['ip'], server['port']))
-            if not self.send_atomic(self.player, (server['password'], server['playerName'])):
-                return False, "Error enviando credenciales"
-            response = self.recv_atomic(self.player, timeout=30)
-            if isinstance(response, dict) and response.get("status") == "CONNECTED":
-                player_id = response["player_id"]
-                self.player_id = player_id
-                self.host = server['ip']
-                self.is_host = False
-                self.running = True
-                self.is_connected = True
-                self.receive_thread_running = True
-                self.server_info_to_reconnect = server.copy()
-                threading.Thread(target=self.receiveData, daemon=True).start()
-                return True, "Conectado exitosamente"
-            elif response == "WRONG_PASSWORD":
-                return False, "Contraseña incorrecta"
-            elif response == "FULL":
-                return False, "Servidor lleno"
-            return False, "Respuesta desconocida"
-        except Exception as e:
-            return False, str(e)
-
-    def receiveData(self):
-        while self.running and self.player:
-            try:
-                received_data = self.recv_atomic(self.player, timeout=30)
-                if received_data is None:
-                    print("Conexión cerrada por el servidor.")
-                    break
-                # Procesar datos recibidos
-            except Exception:
-                break
-        self.is_connected = False
-
+    
     def stop(self):
         self.running = False
         self.receive_thread_running = False
@@ -378,10 +320,7 @@ class NetworkManager:
             "cartas_eleccion": cartas_eleccion_serializada # Ya debe venir serializada (Pickle)
         }
 
-        # Envía el mensaje a todos los jugadores conectados.
-        # Asumo que tienes un método 'broadcast_message' o similar,
-        # si no lo tienes, puedes implementar un bucle para enviar a todos los clientes.
-        # Si 'broadcast_message' no existe, puedes usar tu lógica de envío.
+
         self.broadcast_message(message)
         print(f"Host: Enviando actualización de cartas de elección. Quedan {len(cartas_eleccion_serializada)} cartas.")
 
