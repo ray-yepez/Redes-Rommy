@@ -1055,6 +1055,11 @@ def main(manager_de_red): # <-- Acepta el manager de red
     # Ajusta x, y, w, h según tu layout si es necesario.
     btn_ordenar = pygame.Rect(WIDTH - 190, HEIGHT - 160, 170, 40)
 
+    # ── Botón de ordenamiento de mano ─────────────────────────────────────────
+    # Posición: esquina inferior derecha, por encima de la zona de cartas.
+    # Ajusta x, y, w, h según tu layout si es necesario.
+    btn_ordenar = pygame.Rect(WIDTH - 190, HEIGHT - 160, 170, 40)
+
     while running:
         # --- SOLO FASE DE ELECCIÓN ---
         update_descartar_visibility(zona_cartas, roundThree, roundFour)

@@ -137,66 +137,37 @@ class LogicaPartidaMixin:
         self.mano_por_usuario(self.lista_jugadores_objetos_reordenados, manos, mazo)
 
     def mano_por_usuario(self, jugadores, manos, mazo):
+        # ── CORRECCIÓN 1: usar índice directo en lugar de manos.pop()
+        # manos.pop() sacaba del final → las manos quedaban invertidas.
+        # Ahora usamos manos[idx] para que jugadores[0] reciba manos[0], etc.
+        #
+        # ── CORRECCIÓN 2: eliminar cartas hardcodeadas de prueba
+        # El bloque anterior sobreescribía self.manos con datos fijos
+        # (15 cartas al jugador 1, 9 al jugador 2), ignorando la repartición real.
+        # Ahora se usa exclusivamente el resultado de repartir_cartas().
         cantidad_cartas_usuario = []
         manos_por_jugador = {}
 
-        for jugador in jugadores:
+        for idx, jugador in enumerate(jugadores):
             if self.clientes[jugador.nro_jugador - 1]["status"] != "activo":
                 manos_por_jugador[jugador.nro_jugador - 1] = []
             else:
-                manos_por_jugador[jugador.nro_jugador - 1] = manos.pop()
-            mano_id = {"cantidad_mano":len(manos_por_jugador[jugador.nro_jugador - 1]),"id":jugador.nro_jugador,"nombre":jugador.nombre_jugador}
+                # CORRECCIÓN 1: índice directo, no pop()
+                manos_por_jugador[jugador.nro_jugador - 1] = manos[idx]
+            mano_id = {
+                "cantidad_mano": len(manos_por_jugador[jugador.nro_jugador - 1]),
+                "id": jugador.nro_jugador,
+                "nombre": jugador.nombre_jugador
+            }
             cantidad_cartas_usuario.append(mano_id)
-            print(f'\nCartas del jugador {jugador.nro_jugador} - {jugador.nombre_jugador}: {[str(c) for c in  manos_por_jugador[jugador.nro_jugador - 1]]}')
-            
+            print(
+                f'\nCartas del jugador {jugador.nro_jugador} - '
+                f'{jugador.nombre_jugador}: '
+                f'{[str(c) for c in manos_por_jugador[jugador.nro_jugador - 1]]}'
+            )
+
+        # CORRECCIÓN 2: asignar las manos reales (sin hardcodear ni sobreescribir)
         self.manos = manos_por_jugador
-        self.manos = []
-        carta1 = [{"numero":"Joker","figura":"Especial"},{"numero":"10","figura":"Pica"},{"numero":"9","figura":"Pica"},{"numero":"8","figura":"Pica"},{"numero":"7","figura":"Pica"},{"numero":"K","figura":"Pica"},{"numero":"Joker","figura":"Especial"},{"numero":"J","figura":"Pica"},{"numero":3,"figura":"Pica"},{"numero":4,"figura":"Pica"},{"numero":5,"figura":"Pica"},{"numero":6,"figura":"Trebol"},{"numero":6,"figura":"Pica"},{"numero":6,"figura":"Corazon"},{"numero":6,"figura":"Diamante"}]
-        carta1_1 = []
-        for x in carta1:
-            cart = Carta(
-                un_juego = None,
-                numero = x["numero"],
-                figura = x["figura"],
-            )
-            carta1_1.append(cart)
-        carta2 = [{"numero":"Q","figura":"Pica"},{"numero":"A","figura":"Pica"},{"numero":2,"figura":"Pica"},{"numero":3,"figura":"Pica"},{"numero":4,"figura":"Pica"},{"numero":"A","figura":"Trebol"},{"numero":2,"figura":"Trebol"},{"numero":3,"figura":"Trebol"},{"numero":4,"figura":"Trebol"},]
-        carta1_2 = []
-        for x in carta2:
-            cart = Carta(
-                un_juego = None,
-                numero = x["numero"],
-                figura = x["figura"],
-            )
-            carta1_2.append(cart)
-        carta3 = [{"numero":"A","figura":"Pica"},{"numero":"A","figura":"Pica"},{"numero":"A","figura":"Pica"},{"numero":3,"figura":"Pica"},{"numero":3,"figura":"Pica"},{"numero":3,"figura":"Pica"},{"numero":2,"figura":"Pica"},{"numero":2,"figura":"Pica"},{"numero":2,"figura":"Pica"}]
-        carta1_3 = []
-        for x in carta3:
-            cart = Carta(
-                un_juego = None,
-                numero = x["numero"],
-                figura = x["figura"],
-            )
-            carta1_3.append(cart)
-        carta4 = [{"numero":"A","figura":"Pica"},{"numero":"A","figura":"Pica"},{"numero":"A","figura":"Pica"},{"numero":2,"figura":"Pica"},{"numero":2,"figura":"Pica"},{"numero":2,"figura":"Pica"},{"numero":"A","figura":"Pica"},{"numero":2,"figura":"Pica"},{"numero":3,"figura":"Pica"},{"numero":4,"figura":"Pica"},]
-        carta1_4 = []
-        for x in carta4:
-            cart = Carta(
-                un_juego = None,
-                numero = x["numero"],
-                figura = x["figura"],
-            )
-            carta1_4.append(cart)
-        manos_por_jugador[0] = carta1_1
-        manos_por_jugador[1] = carta1_2
-        manos_por_jugador[2] = carta1_3
-        """manos_por_jugador[3] = carta1_4"""
-        self.manos = manos_por_jugador
-        cantidad_cartas_usuario = []
-        for i in jugadores:
-            mano = self.manos[i.nro_jugador -1]
-            mano_id = {"cantidad_mano":len(mano),"id":i.nro_jugador,"nombre":i.nombre_jugador}
-            cantidad_cartas_usuario.append(mano_id)
         self.mazo = mazo
         jugardor_mano = ()
         for jugador in self.lista_jugadores_objetos_reordenados:
