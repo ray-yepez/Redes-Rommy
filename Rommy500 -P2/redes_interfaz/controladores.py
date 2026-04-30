@@ -357,6 +357,17 @@ def mostrar_mesa(un_juego,clase_mesa_interfaz,datos):
         mesa = clase_mesa_interfaz
         un_juego.mesa = mesa.crear_mesa()
         print("DEBUG: Mesa creada por primera vez")
+
+        # ── BOTÓN ORDENAR MANO (NUEVO) ────────────────────────────────────────
+        # Se crea una sola vez, justo después de crear_mesa(), para que el
+        # objeto Menu ya exista y se le pueda agregar el botón correctamente.
+        try:
+            clase_mesa_interfaz.crear_boton_ordenar(un_juego.mesa)
+            print("DEBUG: Botón de ordenamiento de mano creado")
+        except Exception as e:
+            print(f"WARN: No se pudo crear el botón de ordenamiento: {e}")
+        # ─────────────────────────────────────────────────────────────────────
+
     else:
         un_juego.mesa_juego = clase_mesa_interfaz
         # Hay una mesa existente: actualizar sus elementos usando manejar_partida
@@ -538,4 +549,3 @@ def modificacion_real_datos(un_juego, evento, constantes):
             estado_espera_inicio['evento_pendiente'] = None
             estado_espera_inicio['ultimo_debug'] = None
             print("Mesa mostrada")
-

@@ -1,5 +1,5 @@
 from random import shuffle
-
+import math
 
 class Mazo:
     """
@@ -31,10 +31,16 @@ class Mazo:
         shuffle(self.cartas)
 
     def calcular_nro_mazos(self, numero_de_jugadores):
-        resultado = numero_de_jugadores // 3
-        if numero_de_jugadores % 3 != 0:
-            resultado += 1
+        if numero_de_jugadores == 0:
+            return 0
+        resultado = math.ceil(numero_de_jugadores / 3) + 1
         return resultado
+    
+    # def calcular_nro_mazos(self, numero_de_jugadores):
+    #     resultado = numero_de_jugadores // 3 
+    #     if numero_de_jugadores % 3 != 0:
+    #         resultado += 1
+    #     return resultado
 
     # ── Diagnóstico ───────────────────────────────────────────────────────
 
