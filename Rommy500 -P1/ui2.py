@@ -1188,7 +1188,7 @@ def main(manager_de_red): # <-- Acepta el manager de red
                     p.playerPass = False      # ### NUEVO: Asegurar que nadie haya "pasado"
                     p.playerBuy = False
                 # Inicializacion del mazo...
-                round = startRound(players, screen)[0]
+                round = startRound(players, screen, network_manager)[0]
                 print(f"deck para la ronda: {[str(c) for c in round.pile]}")
                 print(f"descartes de la ronda: {[str(c) for c in round.discards]}")
                 for c in round.discards:

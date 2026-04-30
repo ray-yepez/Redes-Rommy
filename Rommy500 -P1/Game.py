@@ -31,9 +31,11 @@ def electionPhase(players, deck):
     #Devolvemos el orden de los jugadores para la ronda
 
 
-def startRound(playersInOrder, screen): # Incluimos el atributo "screen" para la interfaz gráfica
+def startRound(playersInOrder, screen, network_manager): # Incluimos el atributo "screen" para la interfaz gráfica
     from Round import Round  #Importamos la clase Round aquí para evitar importaciones circulares
     roundInstance = Round(playersInOrder)  #Creamos una instancia de la clase Round
+    # Esto le "avisa" al gestor de red cuál es la ronda que se está jugando
+    network_manager.ronda_actual = roundInstance
     roundInstance.initDeck()  #Inicializamos el mazo
     roundInstance.dealCards()  #Repartimos las cartas a los jugadores
     roundInstance.discardsAndTableDeck()  #Colocamos la primera carta en el montón de descartes

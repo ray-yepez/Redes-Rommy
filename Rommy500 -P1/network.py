@@ -4,6 +4,8 @@ import pickle
 import time
 import json
 import struct
+import queue
+import threading
 
 class NetworkManager:
     def __init__(self):
@@ -54,7 +56,22 @@ class NetworkManager:
         self.game_started = False
         #self.player_ids = {}
         self.socet_lock = threading.Lock() # Lock para operaciones de socket (evita intercalación)
-
+        # NUEVO: INICIALIZACIÓN DE COLA Y HILO DE SALIDA
+        self.cola_mensajes_salida = queue.Queue()
+        threading.Thread(target=self._procesar_cola_salida, daemon=True).start()
+    
+    def _procesar_cola_salida(self):
+        """ Hilo dedicado a extraer mensajes de la cola y enviarlos por el socket de forma segura. """
+        while True:
+            mensaje, conn_destino = self.cola_mensajes_salida.get()
+            try:
+                # Bloqueamos solo al momento de enviar para evitar corrupción de bytes
+                with self.socet_lock:
+                    self.send_atomic(conn_destino, mensaje)
+            except Exception as e:
+                print(f"Error enviando mensaje desde la cola: {e}")
+            self.cola_mensajes_salida.task_done()
+            
     def _recv_exact(self, sock, n, max_retries=5):
         """ Recibe exactamente n bytes del socket """
         data = b''      # Transforma a bytes
@@ -85,20 +102,18 @@ class NetworkManager:
         return data
                 
     def send_atomic(self, sock, data):
-        """ Envía datos como un solo bloque atómico.
-        Formato: [4 bytes longitud][datos pickle] """
+        """ Envía datos como un solo bloque atómico. """
         try:
             pickled = pickle.dumps(data)
             length = len(pickled)
-            # Empaquetar la longitud en 4 bytes big-endian
-            header = struct.pack('>I', length)      # Cabecera, length escrito en 4 bytes  
+            header = struct.pack('>I', length)
             
-            # Enviar primero el header y luego los datos
-            sock.sendall(header)
-            sock.sendall(pickled)
+            # SOLUCIÓN: Agregamos el lock aquí
+            with self.socet_lock:
+                sock.sendall(header)
+                sock.sendall(pickled)
 
             print(f"\n               Longitud del mensaje send_atomic length: {length}\n")
-
             return True
         except Exception as e:
             print(f"Error en send_atomic: {e}")
@@ -156,6 +171,8 @@ class NetworkManager:
         """Inicia el servidor del juego"""
         try:
             self.server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            # NUEVO: Activar Keep-Alive en el servidor
+            self.server.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
             self.server.bind((self.host, self.port))
             self.server.listen(max_players)
             
@@ -245,6 +262,7 @@ class NetworkManager:
 
                                 # Actualiza con nueva conexion
                                 self.connected_players[found_index] = (conn, addr, client_name, player_id)
+                                self.enviar_game_state_sync(conn, player_id) #logica de reconexion actualizada
                             else:
                                 # Nuevo jugador
                                 player_id = self.next_player_id
@@ -454,9 +472,10 @@ class NetworkManager:
                     if conn!=connSend:
                         try:
                             ##conn.send(pickle.dumps(message1))
-                            if not self.send_atomic(conn, message1):
-                                raise Exception("Error en send_atomic")
-                            print(f"Mensaje transmitido a {player_name}")  # Nuevo...
+                           # NUEVO: Enviamos el mensaje a la cola para que el hilo lo despache
+                            self.cola_mensajes_salida.put((message1, conn))
+                            
+                            print(f"Mensaje en cola para {player_name}")  
                             if type(message1)==dict:
                                 print(f"TIPO: {message1.get("type")}")
                             elif type(message1)==str:
@@ -502,13 +521,12 @@ class NetworkManager:
                 continue
             try:
                 # Intentando enviar un ping
-                conn.settimeout(5.0)
                 msg_PING = {"type": "PING",
                             "timestamp": time.time(),
                             "msg": "¿Estas vivo? :) "}
-                ##conn.send(pickle.dumps(msg_PING))
-                if not self.send_atomic(conn, msg_PING):
-                    raise Exception("No se pudo enviar PING atómico")
+                
+                # NUEVO: Mandamos el latido a la cola
+                self.cola_mensajes_salida.put((msg_PING, conn))
                 print(f" Enviando PING a {player_name}")
 
                 # Intentando recibir el PONG
@@ -547,6 +565,8 @@ class NetworkManager:
         """Conecta al servidor especificado"""
         try:
             self.player = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            # NUEVO: Activar Keep-Alive en el cliente
+            self.player.setsockopt(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)
             self.player.connect((server['ip'], server['port']))
             print("Socket creado...")
             
@@ -646,14 +666,15 @@ class NetworkManager:
             except socket.timeout:
                 # Timeout normal, continua el bucle
                 continue
-            except ConnectionResetError:
-                print("Conexión reseteada por el servidor")
-                #self.handle_disconnection()
+            except (ConnectionResetError, BrokenPipeError):
+                print("Conexión perdida. Iniciando protocolo de recuperación...")
+                self.reconnect_client()
                 break        
             except Exception as e:
                 print(f"Error recibiendo datos: {e}")
-                if "broken pipe" in str(e).lower() or "connection reset" in str(e).lower():
-                    #self.handle_disconnection()
+                # Captura errores de socket comunes en Windows/Linux
+                if "10054" in str(e) or "Broken pipe" in str(e):
+                    self.reconnect_client()
                     break
                 continue
             finally:
@@ -668,17 +689,34 @@ class NetworkManager:
         # Si se detuvo por desconexión (y no porque utilizamos a self.stop())
         if self.is_connected:
             self.is_connected = False # Desconectado. Avisar al bucle principal.
+    
+    def reconnect_client(self):
+        """ Bucle que intenta volver al servidor sin cerrar el juego """
+        self.is_connected = False
+        print("Iniciando reconexión automática...")
+
+        while self.running and not self.is_connected:
+            time.sleep(3.0) # Espera para no saturar el procesador
+            print("Intentando reconectar al Host...")
+            try:
+                if self.server_info_to_reconnect:
+                    exito, msj = self.connectToServer(self.server_info_to_reconnect)
+                    if exito:
+                        print("¡Reconexión exitosa!")
+                        return 
+            except Exception as e:
+                print(f"Falló el intento: {e}")
 
     def sendData(self, data):
-        """Envía datos al servidor"""
+        """Envía datos al servidor mediante la cola"""
         if self.player and self.running:
             try:
-                ##self.player.send(pickle.dumps(data))
-                success = self.send_atomic(self.player, data)
-                print(f"Datos enviados al servidor: TIPO: {data.get("type")}")
-                return success
+                # NUEVO: En lugar de enviar directo, metemos la tupla a la cola
+                self.cola_mensajes_salida.put((data, self.player))
+                print(f"Datos en cola para el servidor: TIPO: {data.get('type')}")
+                return True
             except Exception as e:
-                print(f"Error enviando datos.....: {e}")
+                print(f"Error encolando datos.....: {e}")
                 return False
         
         return False
@@ -809,6 +847,38 @@ class NetworkManager:
         self.broadcast_message(message) 
         
         print(f"Host: Enviando actualización de cartas de elección. Quedan {len(cartas_eleccion_serializada)} cartas.")
+        
+    def enviar_game_state_sync(self, conn, id_recuperado):
+       # """ Construye y envía el estado actual de la mesa al jugador reconectado """
+        # NOTA: Debes asegurarte de que en Game.py, al iniciar la ronda, 
+        # asignes el objeto Round a network_manager.ronda_actual
+        if not hasattr(self, 'ronda_actual') or not self.ronda_actual:
+            print("Aún no hay ronda activa para sincronizar.")
+            return
+
+        jugador_recuperado = None
+        for p in self.ronda_actual.players:
+            if p.playerId == id_recuperado:
+                jugador_recuperado = p
+                break
+
+        if not jugador_recuperado:
+            return
+
+        msg_sync = {
+            "type": "GAME_STATE_SYNC",
+            "playerId": jugador_recuperado.playerId,
+            "playerHand": jugador_recuperado.playerHand,       
+            "isHand": jugador_recuperado.isHand,               
+            "downHand": jugador_recuperado.downHand,           
+            "playerPoints": jugador_recuperado.playerPoints,   
+            "discards": self.ronda_actual.discards,                 
+            "pile_count": len(self.ronda_actual.pile)               
+        }
+
+        # Enviamos a la cola para que el hilo lo despache de forma segura
+        self.cola_mensajes_salida.put((msg_sync, conn))
+        print(f"Sincronización enviada a {jugador_recuperado.playerName}")
 
     def exit_game(self, playerId, playerName):
         msgSalir = {
@@ -838,4 +908,6 @@ class NetworkManager:
                 print(f"{str(clave).rjust(15)}: {valor}")
         else:
             return False
+     
+
      
