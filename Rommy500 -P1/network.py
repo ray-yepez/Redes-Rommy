@@ -235,8 +235,8 @@ class NetworkManager:
                 # Verificar contraseña
                 if client_password == self.currentServer['password']:  #self.password:
                     
-                    if len(self.connected_players) <= self.currentServer['max_players']:
-                        if len(self.connected_players) <= self.currentServer['max_players']:
+                    if len(self.connected_players) < self.currentServer['max_players']:
+                        if len(self.connected_players) < self.currentServer['max_players']:
                             # Nuevo...
                             # Verificando si es reconexion o jugador nuevo
                             player_id = None
@@ -824,6 +824,8 @@ class NetworkManager:
         # Notificar a todos los jugdores 
         msgStart = {"type": "START_GAME"}
         self.broadcast_message(msgStart)
+        with self.lock:
+            self.msgStartGame.update(msgStart)
 
     def send_selection_update(self, cartas_eleccion_serializada):
         """

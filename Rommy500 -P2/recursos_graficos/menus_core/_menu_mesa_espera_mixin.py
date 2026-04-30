@@ -62,10 +62,10 @@ class MenuMesaEsperaMixin:
             ancho=ancho_txt_esperando,
             alto=alto_txt_esperando,
             tamaño_fuente=constantes.F_GRANDE,
-            fuente=constantes.FUENTE_LLAMATIVA,
+            fuente=constantes.FUENTE_TITULO,
             color=constantes.ELEMENTO_FONDO_TERCIARIO,
             radio_borde=constantes.REDONDEO_NORMAL,
-            color_texto=constantes.COLOR_TEXTO_SECUNDARIO,
+            color_texto=(187, 165, 113),
             color_borde=constantes.SIN_COLOR,
             grosor_borde=constantes.SIN_BORDE,
             alineacion="izquierda"
@@ -89,7 +89,7 @@ class MenuMesaEsperaMixin:
         texto = (
             f"NOMBRE DE LA SALA: {nombre_sala}\n"
             f"CREADOR DE LA SALA: {nombre_creador}\n"
-            f"JUGADORES CONECTADOS: {jugadores_actuales}/{max_esperados}\n"
+            f"JUGADORES CONECTADOS: {jugadores_actuales} de {max_esperados}\n"
             f"ESPERANDO JUGADORES...\nFALTAN: {faltan}"
         )
     
