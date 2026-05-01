@@ -895,10 +895,6 @@ class   UIManager:
         self.LOBBY_BACK_BUTTON.update(self.SCREEN)
         # ---------------------------------------------------------------------
 
-        # Comprobar inicio de UI2 desde mensajes recibidos
-        if self.process_received_messages() == "launch_ui2":
-            self.playGamePlayer = True
-
         return MENU_MOUSE_POS
 
     def options(self):
@@ -1181,17 +1177,13 @@ o Descartar: Colocar una carta boca arriba en el centro de la mesa para finaliza
                                 self.network_manager.startGame()
                                 self.network_manager.stop_broadcast()
                                 print("Cerrada la transmision de la informacion del servido. Juego iniciado")
+                                return "launch_ui2"  
 
                             else:
                                 print("Se necesitan al menos dos jugadores")
                         else:
-                            msg = self.network_manager.get_msgStartGame()
-                            print(f"Lo que esta en el msg del lobby PLAY_BUTTON {msg}")
-                            if msg == "launch_ui2":
-
-                                return "launch_ui2"
+                            print("Esperando al host para iniciar el juego...")
                         #+++++++++++++++++++++++++++++++++++++++++
-                        return "launch_ui2"  # <-- Indica al main que debe lanzar ui2.py
                     elif self.SEND_MS_BUTTON.checkForInput(event.pos):  # Botón "enviar mensaje"
                         msg = self.message_input_box.text.strip()
                         if msg:
@@ -1255,7 +1247,9 @@ o Descartar: Colocar una carta boca arriba en el centro de la mesa para finaliza
                         self.message_input_box.text = ""
                         self.message_input_box.txt_surface = self.get_font(20).render("", True, (0,0,0))
                         print(f" Mensajes: {self.messages}")
-        self.process_received_messages()
+        process_message = self.process_received_messages()
+        if process_message == "launch_ui2":
+            return process_message
         return True  # Si nada fuerza salida, el loop sigue
     
     def process_received_messages(self):

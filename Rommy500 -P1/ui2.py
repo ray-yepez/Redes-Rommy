@@ -9,7 +9,14 @@ from Deck import Deck
 from Card import Card
 import threading
 import sys
+from penalizaciones import ejecutar_penalizacion, esta_penalizado
 from volumen import ControlVolumen
+from validaciones_jugada import (
+    adaptar_zonas_flexibles,
+    preparar_seguidilla_extendida,
+    resolver_campo_accion,
+    validar_jugada_avanzada_por_tipo,
+)
 
 network_manager = None   #NetworkManager()
 jugadores = []           #network_manager.connected_players
@@ -25,6 +32,9 @@ pygame.display.set_caption("RUMMY 500")
 
 mensaje_orden = ""
 tiempo_inicio_orden = 0
+
+# ── Ordenamiento de mano ──────────────────────────────────────────────────────
+modo_orden = "Sets"   # Alterna entre 'Sets' (Tríos) y 'Runs' (Escaleras)
 
 WIDTH, HEIGHT = 1200, 800
 screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.RESIZABLE)
@@ -905,6 +915,7 @@ def main(manager_de_red): # <-- Acepta el manager de red
     global player1   #NUEVO PARA PRUEBA
     global jugador_local  #NUEVO PARA PRUEBA Reeplazo de player1 :'(
     global siguiente_jugador_local
+    global modo_orden   # ── Modo de ordenamiento de la mano ('Sets' / 'Runs')
 
     global ronudOne, roundTwo   # Para prueba
     # En ui2.py dentro de main()
@@ -1038,6 +1049,11 @@ def main(manager_de_red): # <-- Acepta el manager de red
     list_confirm_ids = []       # Lista para almacenar jugadores que ya tuvieron su turno de compra.
 
     ctrl_volumen = ControlVolumen(x=1025, y=80)
+
+    # ── Botón de ordenamiento de mano ─────────────────────────────────────────
+    # Posición: esquina inferior derecha, por encima de la zona de cartas.
+    # Ajusta x, y, w, h según tu layout si es necesario.
+    btn_ordenar = pygame.Rect(WIDTH - 190, HEIGHT - 160, 170, 40)
 
     while running:
         # --- SOLO FASE DE ELECCIÓN ---
@@ -1645,10 +1661,33 @@ def main(manager_de_red): # <-- Acepta el manager de red
                 screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.RESIZABLE)
                 fondo_img = pygame.transform.scale(pygame.image.load(fondo_path).convert(), (WIDTH, HEIGHT))
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                if esta_penalizado(jugador_local): continue 
                 idx_descarte = 3 if (roundThree or roundFour) else 2 #prueba
                 # --- Detecta clic en inicio o final de cada jugada ---
                 mouse_x, mouse_y = event.pos
                 carta_levantada_de_zona = False
+
+                # ── BOTÓN ORDENAR MANO ────────────────────────────────────────
+                _btn_ordenar_rect = pygame.Rect(WIDTH - 190, HEIGHT - 160, 170, 40)
+                if _btn_ordenar_rect.collidepoint(mouse_x, mouse_y) and jugador_local:
+                    from Player import ordenar_mano
+                    modo_orden = "Runs" if modo_orden == "Sets" else "Sets"
+                    ordenar_mano(jugador_local, modo_orden, WIDTH=WIDTH)
+                    # Sincronizar visual_hand con el nuevo orden de playerHand
+                    orden_logico = list(jugador_local.playerHand)
+                    visual_hand[:] = [c for c in orden_logico if c in visual_hand]
+                    # Agregar cartas que estén en visual_hand pero no en playerHand (no debería haber)
+                    for c in visual_hand:
+                        if c not in jugador_local.playerHand:
+                            visual_hand.remove(c)
+                    # Reasignar índices visuales
+                    for idx_v, carta_v in enumerate(visual_hand):
+                        carta_v.id_visual = idx_v
+                    etiqueta_modo = "Sets (Tríos)" if modo_orden == "Sets" else "Runs (Escaleras)"
+                    mensaje_temporal = f"Mano ordenada: {etiqueta_modo}"
+                    mensaje_tiempo   = time.time()
+                    continue   # no procesar más clics en este frame
+                # ─────────────────────────────────────────────────────────────
 
                 # 1. Intentar levantar de las zonas de juego (Trios/Seguidillas)
                 # Excluimos el índice de descarte definido arriba
@@ -1946,12 +1985,39 @@ def main(manager_de_red): # <-- Acepta el manager de red
                         resultado2 = []
                         resultado3 = []
                         if jugador_local.cardDrawn:
+                            ronda_actual = 1 if roundOne else 2 if roundTwo else 3 if roundThree else 4
+
+                            # NUEVO CODIGO - INSERTAR AQUI
+                            validacion_flexible = adaptar_zonas_flexibles(zona_cartas, ronda_actual)
+
+                            if not validacion_flexible["valida"]:
+                                # --- INICIO PENALIZACIÓN ---
+                                paquete_red = ejecutar_penalizacion(jugador_local, validacion_flexible)
+                                print(f"\n[DEBUG RED] Paquete generado: {paquete_red}\n")
+                                # --- FIN PENALIZACIÓN ---
+                                mensaje_temporal = validacion_flexible["mensaje"]
+                                mensaje_tiempo = time.time()
+                                continue
+
+                            zona_cartas[:] = validacion_flexible["zonas_adaptadas"]
+
+                            validacion_campo = resolver_campo_accion(zona_cartas, ronda_actual)
+
+                            if not validacion_campo["valida"]:
+                                # --- INICIO PENALIZACIÓN ---
+                                paquete_red = ejecutar_penalizacion(jugador_local, validacion_campo)
+                                print(f"\n[DEBUG RED] Paquete generado: {paquete_red}\n")
+                                # --- FIN PENALIZACIÓN ---
+                                mensaje_temporal = validacion_campo["mensaje"]
+                                mensaje_tiempo = time.time()
+                                continue
+
                             if roundOne:
-                                resultado1 = jugador_local.isValidTrioF(zona_cartas[0])
-                                resultado2 = jugador_local.isValidStraightF(zona_cartas[1])
+                                resultado1 = jugador_local.isValidTrioF(zona_cartas[0]) or validar_jugada_avanzada_por_tipo(zona_cartas[0], "trio")
+                                resultado2 = jugador_local.isValidStraightF(zona_cartas[1]) or validar_jugada_avanzada_por_tipo(zona_cartas[1], "seguidilla")
                             elif roundTwo:
-                                resultado1 = jugador_local.isValidStraightF(zona_cartas[0])
-                                resultado2 = jugador_local.isValidStraightF(zona_cartas[1])
+                                resultado1 = jugador_local.isValidStraightF(zona_cartas[0]) or validar_jugada_avanzada_por_tipo(zona_cartas[0], "seguidilla")
+                                resultado2 = jugador_local.isValidStraightF(zona_cartas[1]) or validar_jugada_avanzada_por_tipo(zona_cartas[1], "seguidilla")
                                 
                                 if resultado1 and resultado2:
                                     combined_check = zona_cartas[0] + zona_cartas[1]
@@ -1964,9 +2030,9 @@ def main(manager_de_red): # <-- Acepta el manager de red
                                         continue 
                             elif roundThree:
                                 #resultado = jugador_local.getOff2(zona_cartas[0], zona_cartas[1])
-                                resultado1 = jugador_local.isValidTrioF(zona_cartas[0])
-                                resultado2 = jugador_local.isValidTrioF(zona_cartas[1])
-                                resultado3 = jugador_local.isValidTrioF(zona_cartas[2])
+                                resultado1 = jugador_local.isValidTrioF(zona_cartas[0]) or validar_jugada_avanzada_por_tipo(zona_cartas[0], "trio")
+                                resultado2 = jugador_local.isValidTrioF(zona_cartas[1]) or validar_jugada_avanzada_por_tipo(zona_cartas[1], "trio")
+                                resultado3 = jugador_local.isValidTrioF(zona_cartas[2]) or validar_jugada_avanzada_por_tipo(zona_cartas[2], "trio")
 
                                 if resultado1 and resultado2 and resultado3:
                                     # Obtenemos el valor de la primera carta que NO sea joker en cada zona
@@ -1982,9 +2048,9 @@ def main(manager_de_red): # <-- Acepta el manager de red
                                         
                                         continue
                             elif roundFour:
-                                resultado1 = jugador_local.isValidTrioF(zona_cartas[0])
-                                resultado2 = jugador_local.isValidTrioF(zona_cartas[1])
-                                resultado3 = jugador_local.isValidStraightF(zona_cartas[2])
+                                resultado1 = jugador_local.isValidTrioF(zona_cartas[0]) or validar_jugada_avanzada_por_tipo(zona_cartas[0], "trio")
+                                resultado2 = jugador_local.isValidTrioF(zona_cartas[1]) or validar_jugada_avanzada_por_tipo(zona_cartas[1], "trio")
+                                resultado3 = jugador_local.isValidStraightF(zona_cartas[2]) or validar_jugada_avanzada_por_tipo(zona_cartas[2], "seguidilla")
 
                                 if resultado1 and resultado2 and resultado3:
                                     # En Ronda 4, zona 0 y zona 1 son los tríos
@@ -2006,6 +2072,9 @@ def main(manager_de_red): # <-- Acepta el manager de red
                                     sortedStraights = zona_cartas[1]
                                 else:
                                     sortedStraights = jugador_local.sortedStraight(zona_cartas[1])
+                                    # NUEVO CODIGO - INSERTAR AQUI
+                                    if sortedStraights is False:
+                                        sortedStraights = preparar_seguidilla_extendida(zona_cartas[1])
                                 jugador_local.jugadas_bajadas.append(sortedStraights)
                                 jugador_local.jugadas_bajadas.append(zona_cartas[1])
                                 for carta in zona_cartas[0] + zona_cartas[1]:
@@ -2050,6 +2119,11 @@ def main(manager_de_red): # <-- Acepta el manager de red
                                 else:
                                     sortedStraights1 = jugador_local.sortedStraight(zona_cartas[0])
                                     sortedStraights2 = jugador_local.sortedStraight(zona_cartas[1])
+                                # NUEVO CODIGO - INSERTAR AQUI
+                                if sortedStraights1 is False:
+                                    sortedStraights1 = preparar_seguidilla_extendida(zona_cartas[0])
+                                if sortedStraights2 is False:
+                                    sortedStraights2 = preparar_seguidilla_extendida(zona_cartas[1])
                                 jugador_local.jugadas_bajadas.append(sortedStraights1)
                                 jugador_local.jugadas_bajadas.append(sortedStraights2)
                                 for carta in zona_cartas[0]+ zona_cartas[1]:
@@ -2104,6 +2178,9 @@ def main(manager_de_red): # <-- Acepta el manager de red
                                     sortedStraights = zona_cartas[2]
                                 else:
                                     sortedStraights = jugador_local.sortedStraight(zona_cartas[2])
+                                    # NUEVO CODIGO - INSERTAR AQUI
+                                    if sortedStraights is False:
+                                        sortedStraights = preparar_seguidilla_extendida(zona_cartas[2])
                                 jugador_local.jugadas_bajadas.append(zona_cartas[0])
                                 jugador_local.jugadas_bajadas.append(zona_cartas[1])
                                 jugador_local.jugadas_bajadas.append(sortedStraights)
@@ -3648,6 +3725,17 @@ def main(manager_de_red): # <-- Acepta el manager de red
                 img = pygame.transform.smoothscale(pygame.image.load(path_c).convert_alpha(), (comprar_rect.width, comprar_rect.height))
                 screen.blit(img, comprar_rect.topleft)
             cuadros_interactivos["Comprar carta"] = comprar_rect
+
+        # 4. Botón "ORDENAR MANO" — siempre visible para el jugador local
+        if jugador_local:
+            etiqueta_btn = f"Ordenar: {modo_orden}"
+            btn_ordenar = pygame.Rect(WIDTH - 190, HEIGHT - 160, 170, 40)
+            draw_simple_button(
+                screen, btn_ordenar, etiqueta_btn,
+                get_game_font(10),
+                bg=(40, 80, 130),
+                fg=(255, 255, 255)
+            )
 
         # Intercambiar SÓLO las zonas interactivas: "Descarte" <-> "ZonaCentralInteractiva".
         # Esto cambia solo el mapeo interactivo (donde se debe soltar una carta), no afecta el dibujo.
