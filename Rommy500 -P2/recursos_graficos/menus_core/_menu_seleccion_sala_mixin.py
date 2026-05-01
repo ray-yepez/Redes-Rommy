@@ -1,4 +1,6 @@
 """Mixin para el menú de selección de salas"""
+import pygame
+from logica_interfaz.archivo_de_importaciones import importar_desde_carpeta
 
 from recursos_graficos import constantes
 from recursos_graficos.menu import Menu
@@ -41,13 +43,13 @@ class MenuSeleccionSalaMixin:
             texto="ELIJA LA SALA",
             ancho=constantes.ELEMENTO_GRANDE_ANCHO * 1.5,
             alto=constantes.ELEMENTO_MEDIANO_ALTO,
-            tamaño_fuente=constantes.F_GRANDE,
-            fuente=constantes.FUENTE_LLAMATIVA,
-            color=constantes.ELEMENTO_FONDO_PRINCIPAL,
-            radio_borde=constantes.REDONDEO_NORMAL,
-            color_texto=constantes.COLOR_TEXTO_PRINCIPAL,
-            color_borde=constantes.ELEMENTO_BORDE_SECUNDARIO,
-            grosor_borde=constantes.BORDE_INTERMEDIO,
+            tamaño_fuente=60,
+            fuente=constantes.FUENTE_TITULO,
+            color= None, # Para que el fondo del texto sea transparente y se vea el fondo del menú
+            radio_borde= 0,
+            color_texto=(187, 165, 113), # Un color dorado que resalte sobre el fondo verde,
+            color_borde=None,
+            grosor_borde= 0,
         )
     
         # Obtener salas disponibles
@@ -63,13 +65,13 @@ class MenuSeleccionSalaMixin:
                 texto="No hay salas disponibles\nVuelva a intentar más tarde",
                 ancho=constantes.ELEMENTO_GRANDE_ANCHO,
                 alto=constantes.ELEMENTO_MEDIANO_ALTO,
-                tamaño_fuente=constantes.F_MEDIANA,
-                fuente=constantes.FUENTE_ESTANDAR,
-                color=constantes.ELEMENTO_FONDO_PRINCIPAL,
-                radio_borde=constantes.REDONDEO_NORMAL,
-                color_texto=constantes.COLOR_TEXTO_PRINCIPAL,
-                color_borde=constantes.ELEMENTO_BORDE_SECUNDARIO,
-                grosor_borde=constantes.BORDE_INTERMEDIO,
+                tamaño_fuente=45,
+                fuente=constantes.FUENTE_TITULO,
+                color= None, # Para que el fondo del texto sea transparente y se vea el fondo del menú
+                radio_borde= 0,
+                color_texto=(187, 165, 113), # Un color dorado que resalte sobre el fondo verde
+                color_borde= None,
+                grosor_borde= 0,
             )
         else:
             # Crear botones para cada sala
@@ -131,35 +133,104 @@ class MenuSeleccionSalaMixin:
             grupo_salas.append(menu.botones[-1])
     
     def agregar_botones_control_salas(self, menu):
-        """Agrega botones VOLVER y ACTUALIZAR al menú
+        """Agrega botones VOLVER y ACTUALIZAR con imágenes al menú, asegurando igual tamaño
         
         Args:
             menu: Instancia del menú
         """
-        y = (constantes.ALTO_MENU_SELECCION_SALA - constantes.ELEMENTO_MEDIANO_ALTO) * 0.9
-        x = (constantes.ANCHO_MENU_SELECCION_SALA - constantes.ELEMENTO_PEQUENO_ANCHO)
-        elementos_textos = ("VOLVER", "ACTUALIZAR")
-        funciones = (
-            lambda: controladores.Mostrar_seccion(self, self.menu_nombre_usuario),
-            lambda: self.actualizar_lista_salas()
-        )
+        # 1. Definir un alto fijo para ambos botones en píxeles
+        # Prueba con 120 para ver cuál se ajusta mejor a tu diseño
+        ALTO_FIJO_BOTONES = 120 
 
-        incremento_x = 0.3
-        for i, texto in enumerate(elementos_textos):
-            ancho = constantes.ELEMENTO_PEQUENO_ANCHO
-            alto = constantes.ELEMENTO_MEDIANO_ALTO
-            menu.crear_elemento(
-                x=x * incremento_x,
-                y=y,
+        # Configuración de posiciones relativas
+        y_relativa = (constantes.ALTO_MENU_SELECCION_SALA - constantes.ELEMENTO_MEDIANO_ALTO) * 0.9
+        x_base = (constantes.ANCHO_MENU_SELECCION_SALA - constantes.ELEMENTO_PEQUENO_ANCHO)
+        
+        datos_botones = [
+            {
+                "texto": "VOLVER",
+                "archivo": "boton_volver.png",
+                "accion": lambda: controladores.Mostrar_seccion(self, self.menu_nombre_usuario),
+                "x_inc": 0.3
+            },
+            {
+                "texto": "ACTUALIZAR",
+                "archivo": "b_unirse_sala.png", # Este es el que se veía diferente
+                "accion": lambda: self.actualizar_lista_salas(),
+                "x_inc": 0.75
+            }
+        ]
+
+        for datos in datos_botones:
+            # 2. Crear el botón base
+            x_relativa = x_base * datos["x_inc"]
+            boton = menu.crear_elemento(
+                x=x_relativa,
+                y=y_relativa,
                 funcion=True,
-                ancho=ancho,
-                alto=alto,
-                texto=texto,
-                accion=funciones[i],
+                ancho=constantes.ELEMENTO_PEQUENO_ANCHO,
+                alto=constantes.ELEMENTO_MEDIANO_ALTO,
+                texto=datos["texto"],
+                accion=datos["accion"],
                 tp_color="s",
-                tp_borde="g"
+                tp_borde="n"
             )
-            incremento_x += 0.45
+
+            # 3. Cargar y escalar la imagen a una altura fija
+            try:
+                ruta_img = importar_desde_carpeta(
+                    nombre_archivo=f"Imagenes/botones/{datos['archivo']}",
+                    nombre_carpeta="assets"
+                )
+
+                img = pygame.image.load(ruta_img).convert_alpha()
+
+                # --- NUEVA LÓGICA DE ESCALADO ---
+                # 1. Obtener dimensiones originales
+                ancho_orig = img.get_width()
+                alto_orig = img.get_height()
+                
+                # 2. Calcular factor de escala basado solo en la altura
+                factor_escala_y = ALTO_FIJO_BOTONES / alto_orig
+                
+                # 3. Calcular nuevo ancho manteniendo la proporción original
+                nuevo_ancho = int(ancho_orig * factor_escala_y)
+                nuevo_alto = ALTO_FIJO_BOTONES
+
+                # 4. Escalar la imagen a las nuevas dimensiones precisas
+                img = pygame.transform.smoothscale(img, (nuevo_ancho, nuevo_alto))
+
+                # Posicionamiento absoluto
+                x_absoluto = menu.x + x_relativa
+                y_absoluto = menu.y + y_relativa
+
+                boton.x = int(x_absoluto)
+                boton.y = int(y_absoluto)
+                boton.ancho = nuevo_ancho
+                boton.alto = nuevo_alto
+
+                boton.rect = pygame.Rect(
+                    int(x_absoluto),
+                    int(y_absoluto),
+                    nuevo_ancho,
+                    nuevo_alto
+                )
+
+                # Asignar imagen
+                boton.superficie_texto = img
+                boton.rect_texto = img.get_rect(center=boton.rect.center)
+
+                # Quitar estilos genéricos
+                boton.color_actual = None
+                boton.color = None
+                boton.color_hover = None
+                boton.color_clicado = None
+                boton.grosor_borde = 0
+                boton.color_borde = None
+                boton.color_borde_actual = None
+
+            except Exception as e:
+                print(f"Error cargando imagen {datos['archivo']}: {e}")
 
     def actualizar_lista_salas(self):
         """Refresca la lista de salas disponibles recreando el menú"""
