@@ -32,27 +32,27 @@ class ControlVolumen:
             pass
 
     # pasamos los eventos como argumento:
-    def actualizar_y_dibujar(self, eventos):
+    def actualizar_y_dibujar(self):
         pantalla = pygame.display.get_surface()
         if not pantalla: return 
 
+        # 1. LÓGICA DE MOUSE (Sin pedir 'eventos')
         mouse_pos = pygame.mouse.get_pos()
-        
-        # 1. LÓGICA DE MOUSE BASADA EN EVENTOS (Evita saturar el CPU)
-        for evento in eventos:
-            if evento.type == pygame.MOUSEBUTTONDOWN and evento.button == 1: # Clic izquierdo
-                for i, rect in enumerate(self.rects):
-                    if rect.collidepoint(mouse_pos):
-                        self.nivel_actual = i
-                        self.aplicar_volumen()
-                        break 
+        click = pygame.mouse.get_pressed()[0] 
+
+        if click and not self.clic_previo:
+            for i, rect in enumerate(self.rects):
+                if rect.collidepoint(mouse_pos):
+                    self.nivel_actual = i
+                    self.aplicar_volumen()
+                    break 
+        self.clic_previo = click
 
         # 2. DIBUJADO DE LOS BOTONES
         for i, rect in enumerate(self.rects):
             color = self.color_activo if i <= self.nivel_actual else self.color_inactivo
             pygame.draw.rect(pantalla, color, rect)
             pygame.draw.rect(pantalla, self.color_borde, rect, 2)
-        
         #En el paso 3, se utilizaba pygame.display.update(self.rects) definiéndolo como "LA SOLUCIÓN MAGICA".
 #El error: Aunque la actualización parcial (Dirty Rectangles) es una técnica excelente para optimizar rendimiento, entra en conflicto directo si en la clase de la UI (ui_manager.update()) utiliza paralelamente pygame.display.flip() u otro actualizador de pantalla completa. Tener dos órdenes de refresco distintas peleando por el buffer de video en hardware gráfico integrado genera un parpadeo severo (flickering) y caídas de cuadros. Estas caídas de fotogramas congelan momentáneamente el envío de paquetes (el send_atomic que tenemos en la red).
 #La solución: El control de volumen solo debe encargarse de dibujar los rectángulos sobre la superficie de la pantalla. Eliminamos por completo la línea pygame.display.update(self.rects). La orden de actualizar la pantalla debe ser única y residir exclusivamente al final del bucle principal while running: en main.py.
