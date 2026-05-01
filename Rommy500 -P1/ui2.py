@@ -1055,6 +1055,11 @@ def main(manager_de_red): # <-- Acepta el manager de red
     # Ajusta x, y, w, h según tu layout si es necesario.
     btn_ordenar = pygame.Rect(WIDTH - 190, HEIGHT - 160, 170, 40)
 
+    # ── Botón de ordenamiento de mano ─────────────────────────────────────────
+    # Posición: esquina inferior derecha, por encima de la zona de cartas.
+    # Ajusta x, y, w, h según tu layout si es necesario.
+    btn_ordenar = pygame.Rect(WIDTH - 190, HEIGHT - 160, 170, 40)
+
     while running:
         # --- SOLO FASE DE ELECCIÓN ---
         update_descartar_visibility(zona_cartas, roundThree, roundFour)
@@ -1305,7 +1310,7 @@ def main(manager_de_red): # <-- Acepta el manager de red
             msgGame = network_manager.get_moves_gameServer()
         if msgGame:
             print(f"TURNO DEL JUGADOR: {[p.playerName for p in players if p.isHand]}")
-            print(f"llego esto de get_moves_game.. {type(msgGame)} len:{len(msgGame)} TIPO: {msgGame[0].get("type")}")
+            print(f"llego esto de get_moves_game.. {type(msgGame)} len:{len(msgGame)} TIPO: {msgGame[0].get('type')}")
         
         for msg in msgGame:
             if isinstance(msg,dict) and msg.get("type")=="BAJARSE":
@@ -1336,9 +1341,9 @@ def main(manager_de_red): # <-- Acepta el manager de red
                 bought = True
 
                 print(f"Mensaje de TOMAR DESCARTE recibido del Player ID: {player_id_que_tomoD}")
-                print(f" Probando.. Mazo de descarte {msg.get("mazo_descarte")}")
+                print(f" Probando.. Mazo de descarte {msg.get('mazo_descarte')}")
                 print(f" Probando.. round.discart    {round.discards}")
-                print(f" Probando.. mano_restante                    {msg.get("playerHand")}")
+                print(f" Probando.. mano_restante                    {msg.get('playerHand')}")
                 print(f" Probando.. round.hands[player_id_que_tomoD] {round.hands[player_id_que_tomoD]}")
                 for p in players:
                     if p.playerId == player_id_que_tomoD:

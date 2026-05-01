@@ -303,64 +303,121 @@ class NetworkManager:
         player_name = f"{namePlayer}" #Para identificar al juador por el nombre
         try:
             while self.running:
-                try:
-                    ##data = conn.recv(8192)
-                    received_data = self.recv_atomic(conn, timeout=30)
-                              
-                    ##if not data:
-                    if received_data is None:
-                        print(f"Jugador {namePlayer} (ID: {player_id}) cerró conexión normalmente.")
-                        break
-
-                    with self.lock:
-                        ##received_data = pickle.loads(data)
-                        self.received_data = received_data  # Informacion del juego para el Host
-
-                    #Procesar mensajes del lobby/Chat
-                    if isinstance(received_data, tuple) and received_data[0]=="chat_messages":
-                        message_content = received_data[1]
-                        formattedMsg = f"{player_name}: {message_content}"
-                        print(f"Transmitiendo mensaje: {formattedMsg}")
-                        # Enviar el mensaje a todos los clientes conectados
-                        self.broadcast_message((formattedMsg, conn))
-                        
-                    # mensajes que no son del chat...
-                    else:
-                        # Mensajes del juego de jugadores para los jugadores
-                        if isinstance(received_data,dict) and received_data.get("type") == "PONG":
-                            with self.lock:
-                                self.last_activity[player_id] = time.time()
-                            print(f" Respuesta al PING..., PONG: Sigo vivo :) ")
-                            print(f" [Health] Actividad registrada para {player_name} (ID: {player_id})")
-                            print(f"Tamaño del last_activity {len(self.last_activity)}")
-                            continue # No procesar este mensaje como mensaje de juego
-                            
-                        elif isinstance(received_data, dict) and received_data.get("type") != "PONG": 
-                            print(f"Transmitiendo mensaje de los jugadores---> TIPO:{received_data.get("type")}")
-                            # Enviar el mensaje a todos los clientes conectados
-                            self.broadcast_message((received_data, conn))
-                        #pass
-                except ConnectionResetError:
-                    print(f"Conexión reseteada por el jugador: {namePlayer}")
-                    break # Evita seguir intentando recibir datos de una conexion cerrada       # Nuevo... 
-                except socket.timeout:
-                    # El timeout es normal si el jugador no ha movido nada.
-                    # Simplemente volvemos al inicio del while para seguir escuchando.
-                    continue
-                except Exception as e:
-                    print(f"Error manejando jugador {player_name}: {e}")   # Se cambió addr por player_name
-                    time.sleep(0.5) 
-                    continue # Intenta continuar, recibir el siguiente dato
-                        
+                received_data = self.recv_atomic(conn, timeout=30)
+                if received_data is None:
+                    print(f"{namePlayer} desconectó o timeout.")
+                    break
+                with self.lock:
+                    self.received_data = received_data
+                
         finally:
-            conn.close()
-            with self.lock:
-                # Remover por ID del jugador
-                self.connected_players = [p for p in self.connected_players if p[3] != player_id] # Nuevo...
-                self.currentServer['currentPlayers'] = len(self.connected_players)   
-            print(f"Conexión cerrada con {addr}, Cantidad de JUGADORES:{len(self.connected_players)}")
+            self.handle_disconnect(player_id, namePlayer)
 
-    def discoverServers(self, timeout=5):  
+    def handle_disconnect(self, player_id, name):
+        with self.lock:
+            if player_id in self.players_by_id:
+                self.players_by_id[player_id]['active'] = False
+                try:
+                    self.players_by_id[player_id]['conn'].close()
+                except:
+                    pass
+                # Mantener datos para reconexión
+                if name not in self.players_reconnect_data:
+                    self.players_reconnect_data[name] = {'player_id': player_id}
+                print(f"{name} desconectado.")
+                # Notificar a todos
+                self.broadcast_message({
+                    "type": "PLAYER_DISCONNECTED",
+                    "id": player_id,
+                    "name": name,
+                    "msg": "Jugador desconectado"
+                })
+                # Actualizar lista de jugadores conectados
+                self.connected_players = [p for p in self.connected_players if p[3] != player_id]
+                self.currentServer['currentPlayers'] = len(self.connected_players)
+
+    
+    def stop(self):
+        self.running = False
+        self.receive_thread_running = False
+        for p in self.connected_players:
+            try:
+                p[0].close()
+            except:
+                pass
+        if self.server:
+            try:
+                self.server.close()
+            except:
+                pass
+        if self.player:
+            try:
+                self.player.close()
+            except:
+                pass
+    def canStartGame (self):
+        """
+        Verifica que haya minimo 2 jugadores
+        """
+        return len(self.connected_players)>=2
+
+    def startGame(self):
+        """Inicia el juego y notifica a todos"""
+        self.game_started = True
+
+        print(f"Iniciando el juego con {len(self.connected_players)} jugadores")
+
+        # Notificar a todos los jugdores 
+        msgStart = {"type": "START_GAME"}
+        self.broadcast_message(msgStart)
+
+    def send_selection_update(self, cartas_eleccion_serializada):
+        """
+        El Host usa este método para notificar a todos los clientes 
+        la lista actualizada de cartas_eleccion.
+        """
+        if not self.is_host:
+            print("ERROR: Solo el Host puede enviar actualizaciones de selección.")
+            return
+
+        # El mensaje contendrá la lista de cartas de elección actualizada
+        message = {
+            "type": "SELECTION_UPDATE",
+            "cartas_eleccion": cartas_eleccion_serializada # Ya debe venir serializada (Pickle)
+        }
+
+
+        self.broadcast_message(message)
+        print(f"Host: Enviando actualización de cartas de elección. Quedan {len(cartas_eleccion_serializada)} cartas.")
+
+    def exit_game(self, playerId, playerName):
+        msgSalir = {
+            "type": "SALIR",
+            "playerId": playerId,
+            "playerName": playerName
+            }
+        if self.player:
+            self.sendData(msgSalir)
+
+    def get_game_info(self):
+        """Obtiene información del juego"""
+        return {
+            "gameName": self.gameName,
+            "host": self.host,
+            "port": self.port,
+            "max_players": self.max_players,
+            "connected_players": self.connected_players,
+            "is_host": self.is_host
+        }
+
+    def dprint(self, dic):
+        """Para imprimir mas bonito un diccionario"""
+        if isinstance(dic, dict):
+            for clave, valor in dic.items():
+                print(f"{str(clave).rjust(15)}: {valor}")
+        else:
+            return False
+    def discoverServers(self, timeout=5):
         """Descubre servidores disponibles en la red local"""
         self.servers = []
         
