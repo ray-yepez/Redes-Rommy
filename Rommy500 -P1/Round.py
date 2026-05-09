@@ -21,11 +21,11 @@ class Round:
 
     def initDeck(self):
         numOfPlayers = len(self.players) #Mostrará el número de jugadores
-        numOfDecks = 1 #Por defecto, se usará 1 mazo
+        numOfDecks = 2 #Por defecto, se usará 2 mazos
         if numOfPlayers >= 4 and numOfPlayers <= 6:
-            numOfDecks = 2
-        elif numOfPlayers > 6:  #Estos condicionales son para utilizar mazos de acuerdo a la cantidad de jugadores
             numOfDecks = 3
+        elif numOfPlayers > 6:  #Estos condicionales son para utilizar mazos de acuerdo a la cantidad de jugadores
+            numOfDecks = 4
         self.deck = Deck(numOfDecks) #Creamos el mazo total con el número de mazos correspondiente
         self.deck.shuffleCards() #Barajamos las cartas del mazo (de nuevo, por si acaso)
     
