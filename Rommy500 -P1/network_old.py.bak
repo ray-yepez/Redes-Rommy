@@ -486,7 +486,8 @@ class NetworkManager:
         except Exception as e:
             print(f"Error en broadcast: {e}")
 
-    def start_health_check(self, interval = 60):
+            # se baja a el intervalo de 60 a 5 
+    def start_health_check(self, interval = 5):
         """ Inicia la verificacion periodica de conexiones"""
         def health_check_loop():
             while self.running:
