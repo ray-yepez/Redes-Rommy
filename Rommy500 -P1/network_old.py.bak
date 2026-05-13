@@ -491,10 +491,13 @@ class NetworkManager:
         """ Inicia la verificacion periodica de conexiones"""
         def health_check_loop():
             while self.running:
-                time.sleep(interval)
+                # MOVER EL PRINT AQUÍ AFUERA PARA VER LA LISTA
+                print(f" [DEBUG] Hilo activo. Jugadores detectados: {len(self.connected_players)}")
+                
                 if len(self.connected_players) > 1: # un jugador ademas del host
                     print(" Ejecutando el Health check...")
                     self.check_connection_health()
+                time.sleep(interval)
         # Creamos un hilo para no detener el hilo principal
         health_thread = threading.Thread(target=health_check_loop,daemon=True)
         health_thread.start()
