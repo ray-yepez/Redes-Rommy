@@ -898,3 +898,18 @@ class NetworkManager:
         else:
             return False
      
+    def cerrar_conexion(self, sock, mensaje="¿Desea salir?"):
+      """Solicita confirmación y cierra la conexión de forma ordenada."""
+      try:
+        respuesta = input(f"{mensaje} (s/n): ").strip().lower()
+        if respuesta == 's':
+            try:
+                sock.shutdown(socket.SHUT_RDWR)  # Cierra en ambos sentidos
+            except:
+                pass
+            sock.close()
+            print("Conexión cerrada ordenadamente.")
+        else:
+            print("Conexión no cerrada por el usuario.")
+      except Exception as e:
+        print(f"Error durante cierre: {e}")
