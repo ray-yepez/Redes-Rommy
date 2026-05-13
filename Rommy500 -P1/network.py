@@ -297,21 +297,34 @@ class NetworkManager:
                 else:
                     break
 
-
-    def handlePlayer(self, conn, addr, namePlayer, player_id):
-        """Maneja la comunicación con un cliente conectado"""
-        player_name = f"{namePlayer}" #Para identificar al juador por el nombre
-        try:
-            while self.running:
+def handlePlayer(self, conn, addr, playerName, player_id):
+    """Maneja la comunicación con un cliente conectado"""
+    player_name = f"{playerName}"
+    try:
+        while self.running:
+            try:
                 received_data = self.recv_atomic(conn, timeout=30)
                 if received_data is None:
-                    print(f"{namePlayer} desconectó o timeout.")
+                    print(f"Jugador {playerName} (ID: {player_id}) cerró conexión.")
+                    self.cerrar_conexion(conn)
                     break
-                with self.lock:
-                    self.received_data = received_data
-                
-        finally:
-            self.handle_disconnect(player_id, namePlayer)
+                # Procesar datos...
+            except ConnectionResetError:
+                print(f"Conexión reset por el jugador {playerName}")
+                self.cerrar_conexion(conn)
+                break
+            except socket.timeout:
+                continue
+            except Exception as e:
+                print(f"Error con jugador {playerName}: {e}")
+                self.cerrar_conexion(conn)
+                break
+    finally:
+        with self.lock:
+            self.connected_players = [p for p in self.connected_players if p[3] != player_id]
+            self.currentServer['currentPlayers'] = len(self.connected_players)
+        print(f"Conexión cerrada con {addr}.")
+
 
     def handle_disconnect(self, player_id, name):
         with self.lock:
