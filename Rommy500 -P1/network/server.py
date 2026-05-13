@@ -202,7 +202,13 @@ class GameServer:
         msg_type = data.get("type")
         
         if msg_type == MessageType.PONG.value:
+            # Capturamos el tiempo en que el cliente recibió el ping
+            ping_time = data.get("timestamp", 0)
+            # Calculamos la ida y vuelta (RTT)
+            latencia = (time.time() - ping_time) * 1000  
+
             self.state.update_last_activity(player.player_id, time.time())
+            print(f"Latencia de {player.name}: {latencia:.2f} ms")
             logger.debug(f"PONG recibido de {player.name}")
             # No retransmitir PONG
             return

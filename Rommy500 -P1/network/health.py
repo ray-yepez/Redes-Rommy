@@ -39,6 +39,7 @@ class HealthMonitor:
                 continue  # El Host no se pinguea a sí mismo
             
             try:
+                # Enviamos el latido con el tiempo exacto actual para medir latencia si es necesario
                 msg = {
                     "type": MessageType.PING.value,
                     "timestamp": time.time()
@@ -67,8 +68,4 @@ class HealthMonitor:
             
             except Exception as e:
                 logger.error(f"Error procesando health check para {player.name}: {e}")
-                disconnected.append(player.player_id)
-        
-        # Eliminar jugadores inactivos detectados en este ciclo
-        for player_id in disconnected:
-            self.state.remove_connected_player(player_id)
+                
