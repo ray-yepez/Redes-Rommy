@@ -190,8 +190,7 @@ class NetworkManager:
             print(F"HILO PARA EL BROASDCAST... ")
 
             # Inicio de health check con su respectivo hilo
-            # Se bajo el intervalo de 60 a 5
-            self.start_health_check(interval = 5)
+            self.start_health_check(interval = 60)
 
             return True
         except Exception as e:
@@ -328,22 +327,12 @@ class NetworkManager:
                     else:
                         # Mensajes del juego de jugadores para los jugadores
                         if isinstance(received_data,dict) and received_data.get("type") == "PONG":
-                           with self.lock:
-                                # 1. Recuperamos el tiempo en que el servidor envió el PING originalmente
-                                # Este dato viene de vuelta en el paquete que mandó el cliente
-                                sent_time = received_data.get("timestamp", 0)
-        
-                                # 2. Calculamos el Ping (Tiempo actual - Tiempo de envío)
-                                # Multiplicamos por 1000 para tener milisegundos (ms)
-                                ping_ms = (time.time() - sent_time) * 1000
-        
-                                # 3. Actualizamos la actividad para que el health_check sepa que sigue conectado
+                            with self.lock:
                                 self.last_activity[player_id] = time.time()
-        
-                                # Mostramos el resultado en la consola del servidor (Windows)
-                                print(f" [Heartbeat] {player_name} (ID: {player_id}) está vivo.")
-                                print(f" [Network] Ping: {ping_ms:.2f} ms")
-                            continue # Seguimos escuchando el siguiente mensaje
+                            print(f" Respuesta al PING..., PONG: Sigo vivo :) ")
+                            print(f" [Health] Actividad registrada para {player_name} (ID: {player_id})")
+                            print(f"Tamaño del last_activity {len(self.last_activity)}")
+                            continue # No procesar este mensaje como mensaje de juego
                             
                         elif isinstance(received_data, dict) and received_data.get("type") != "PONG": 
                             print(f"Transmitiendo mensaje de los jugadores---> TIPO:{received_data.get("type")}")
@@ -486,68 +475,72 @@ class NetworkManager:
         except Exception as e:
             print(f"Error en broadcast: {e}")
 
-            # se baja a el intervalo de 60 a 5 
-    def start_health_check(self, interval = 5):
+    def start_health_check(self, interval = 60):
         """ Inicia la verificacion periodica de conexiones"""
         def health_check_loop():
             while self.running:
-                # MOVER EL PRINT AQUÍ AFUERA PARA VER LA LISTA
-                print(f" [DEBUG] Hilo activo. Jugadores detectados: {len(self.connected_players)}")
-                
+                time.sleep(interval)
                 if len(self.connected_players) > 1: # un jugador ademas del host
                     print(" Ejecutando el Health check...")
                     self.check_connection_health()
-                time.sleep(interval)
         # Creamos un hilo para no detener el hilo principal
         health_thread = threading.Thread(target=health_check_loop,daemon=True)
         health_thread.start()
         print(f"Health check iniciado cada {interval} segundos")
 
     def check_connection_health(self):
-        """Envía un latido (Heartbeat) a los clientes y detecta desconexiones"""
+        """Verifica que las conecciones esten activas"""
         if not self.running:
-            return [cite: 92]
+            return
 
         disconnected = []
-        ahora = time.time()
 
-        # Usamos una copia de la lista para evitar errores si alguien se desconecta en medio
-        for conn, addr, player_name, player_id in self.connected_players[:]:
-            if conn == self.server: # No nos auto-pingueamos [cite: 93]
+        for conn, addr, player_name, player_id in self.connected_players:
+            # No hacer el PING al host :D
+            if conn == self.server:
                 continue
-            
             try:
-                # 1. Verificar si el jugador lleva demasiado tiempo sin dar señales de vida
-                # Si el último PONG fue hace más de 15 segundos, lo marcamos para eliminar
-                ultima_vez = self.last_activity.get(player_id, ahora)
-                if ahora - ultima_vez > 15:
-                    raise Exception("Inactividad prolongada (Timeout de Heartbeat)") [cite: 100]
+                # Intentando enviar un ping
+                conn.settimeout(5.0)
+                msg_PING = {"type": "PING",
+                            "timestamp": time.time(),
+                            "msg": "¿Estas vivo? :) "}
+                ##conn.send(pickle.dumps(msg_PING))
+                if not self.send_atomic(conn, msg_PING):
+                    raise Exception("No se pudo enviar PING atómico")
+                print(f" Enviando PING a {player_name}")
 
-                # 2. Enviar el Latido con el timestamp actual para medir el Ping
-                msg_heartbeat = {
-                    "type": "PING",
-                    "timestamp": ahora, 
-                    "msg": "hb"
-                }
-            
-                if not self.send_atomic(conn, msg_heartbeat): [cite: 95]
-                    raise Exception("Error de conexión al enviar latido")
-                
-                print(f" [Heartbeat] Latido enviado a {player_name}") [cite: 95]
-
+                # Intentando recibir el PONG
+                start_time = time.time()
+                pong_received = False
+                while time.time() - start_time < 5.0:
+                    try:
+                        data = self.last_activity
+                        if data:
+                            if time.time() - self.last_activity.get(player_id,0)< 30:
+                                print(f" El jugador {player_name} respondio el PONG")
+                                pong_received = True
+                                break
+                    except socket.timeout:
+                        continue # Continua esperando en el tiempo limite
+                    except BlockingIOError:
+                        continue # No hay datos disponibles aun... :'( 
+                if not pong_received:
+                    # Timeout - Eljugador no resondio el PONG
+                    raise Exception( "El jugador no respondio PONG en el tiempo limite :'( No esta vivo ")
             except Exception as e:
-                print(f" [Aviso] {player_name} falló salud: {e}") [cite: 100]
-                disconnected.append((conn, addr, player_name, player_id)) [cite: 101]
-
-        # 3. Limpieza de jugadores desconectados
-        if disconnected:
-            with self.lock: [cite: 81]
-                for p in disconnected:
-                    if p in self.connected_players:
-                        self.connected_players.remove(p) [cite: 101]
-                        print(f" [Red] {p[2]} eliminado por desconexión.") [cite: 102]
+                print(f" El jugador {player_name} no respondio el PING: {e}")
+                disconnected.append((conn, addr,player_name,player_id))
         
-            self.currentServer['currentPlayers'] = len(self.connected_players) [cite: 102]
+        # Eliminar desconectados
+        if disconnected:
+            disconnected_ids = [player[3] for player in disconnected]
+            self.connected_players = [p for p in self.connected_players if p[3] not in disconnected_ids]
+            for player in disconnected:
+                print(f" El jugador {player[2]} fue eliminado por falta de respueta del PING")
+
+            self.currentServer['currentPlayers'] = len(self.connected_players)
+            print(f" Jugadores restantes {self.currentServer['currentPlayers']}")
 
     def connectToServer(self, server):
         """Conecta al servidor especificado"""
@@ -612,23 +605,13 @@ class NetworkManager:
 
                 # Manejo del mensaje PING
                 if isinstance(received_data, dict) and received_data.get("type")=="PING":
-                    # 1. Extraemos el timestamp que mandó el servidor
-                    server_timestamp = received_data.get("timestamp")
-    
-                    # 2. Creamos la respuesta (PONG) devolviendo el MISMO timestamp
-                    msg_PONG = {
-                        "type": "PONG",
-                        "timestamp": server_timestamp, # Obligatorio para medir el ping
-                        "player_id": self.player_id,
-                        "msg": "estoy vivo"
-                    }
-    
-                    # 3. Lo enviamos de vuelta inmediatamente
-                    self.sendData(msg_PONG)
-    
-                    # 4. Usamos 'continue' para que este mensaje técnico 
-                    # no ensucie la lógica visual del juego
-                    continue
+                        print(" Recibido el PING, enviando el PONG al servidor")
+                        msg_PONG = {"type": "PONG",
+                                    "timestamp":received_data.get("timestamp"),
+                                    "response_to": received_data.get("msg","PING")}
+                        # Envio del msg PONG
+                        self.sendData(msg_PONG)
+                        continue # No procesar mas este mensaje
                 # Restaurar timeout para operar normal
                 #self.player.settimeout(None)
 
