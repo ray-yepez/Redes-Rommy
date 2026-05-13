@@ -10,6 +10,7 @@ from .types import ConnectedPlayer
 from .exceptions import TimeoutException, ConnectionResetException
 from .constants import MessageType, ConnectionStatus
 from .health import HealthMonitor
+from .discovery import Discovery
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,7 @@ class GameServer:
         self.server_socket = None
         self.next_player_id = 2  # 1 es el HOST
         self.health_monitor = HealthMonitor(self.state, self.transport, self.config)
+        self.discovery = Discovery(self.state, self.config)
     
     def start(self, game_name: str, player_name: str, max_players: int, room_name: str) -> bool:
         """Inicia el servidor TCP."""
@@ -53,7 +55,11 @@ class GameServer:
                 player_id=1,
                 is_host=True
             )
+
+
             self.state.add_connected_player(host_player)
+
+            self.discovery.start(room_name)
             self.health_monitor.start_health_check()
             logger.info(f"Monitor de salud (Heartbeat) iniciado")
             
