@@ -9,6 +9,7 @@ from .config import NetworkConfig
 from .types import ConnectedPlayer
 from .exceptions import TimeoutException, ConnectionResetException
 from .constants import MessageType, ConnectionStatus
+from .health import HealthMonitor
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +22,7 @@ class GameServer:
         self.config = config or NetworkConfig()
         self.server_socket = None
         self.next_player_id = 2  # 1 es el HOST
+        self.health_monitor = HealthMonitor(self.state, self.transport, self.config)
     
     def start(self, game_name: str, player_name: str, max_players: int, room_name: str) -> bool:
         """Inicia el servidor TCP."""
@@ -52,6 +54,8 @@ class GameServer:
                 is_host=True
             )
             self.state.add_connected_player(host_player)
+            self.health_monitor.start_health_check()
+            logger.info(f"Monitor de salud (Heartbeat) iniciado")
             
             # Hilo aceptador
             threading.Thread(target=self._accept_loop, daemon=True).start()
