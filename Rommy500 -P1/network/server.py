@@ -59,7 +59,7 @@ class GameServer:
 
             self.state.add_connected_player(host_player)
 
-            self.discovery.start(room_name)
+            self.discovery.start_broadcast()
             self.health_monitor.start_health_check()
             logger.info(f"Monitor de salud (Heartbeat) iniciado")
             

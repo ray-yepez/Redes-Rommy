@@ -19,8 +19,11 @@ class Discovery:
         self.config = config or NetworkConfig()
         self.discovered_servers = []
     
-    def start_broadcast(self):
+    def start_broadcast(self ):
         """Inicia el broadcast periódico de la sala (SOLO HOST, CORRE EN HILO)."""
+        #ACTIVAR LA BANDERA PARA QUE EL HILO DE BROADCAST SE EJECUTE
+        self.state.running_broadcast = True
+
         def broadcast_loop():
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
@@ -49,7 +52,7 @@ class Discovery:
                     packet = json.dumps(server_data).encode('utf-8')
                     # Broadcastear al puerto definido
                     sock.sendto(packet, ('<broadcast>', self.config.BROADCAST_PORT))
-                    logger.debug(f"Broadcast enviado UDP: Sala '{server_data['name']}' IP {server_data['ip']}")
+                    logger.info(f"Broadcast enviado UDP: Sala '{server_data['name']}' IP {server_data['ip']}")
                     
                     time.sleep(self.config.BROADCAST_INTERVAL)
                 except Exception as e:
@@ -58,7 +61,6 @@ class Discovery:
             
             sock.close()
         
-        self.state.running_broadcast = True
         threading.Thread(target=broadcast_loop, daemon=True).start()
     
     def discover_servers(self, timeout: int = 5):
