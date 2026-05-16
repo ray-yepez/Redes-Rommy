@@ -512,3 +512,39 @@ class LogicaPartidaMixin:
         except Exception:
             pass
 
+   
+    def cerrar_conexion_limpia(self, cliente_socket, indice_cliente=None):
+        """
+        Maneja excepciones de sockets rotos y realiza un cierre ordenado.
+        Pregunta al usuario si desea salir antes de desconectar.
+        """
+        # 1. Mensaje de confirmación en consola (adaptable a interfaz gráfica)
+        confirmacion = input("\n¿Desea salir? (s/n): ").strip().lower()
+        if confirmacion != 's':
+            print("Cierre cancelado. Continuando partida.")
+            return False
+
+        print("\n[INFO] Iniciando proceso de desconexión limpia...")
+        
+        # 2. Manejo de excepciones al cerrar el socket
+        try:
+            if cliente_socket:
+                # Deshabilita envíos y recepciones de forma ordenada
+                cliente_socket.shutdown(2) # 2 = socket.SHUT_RDWR
+                cliente_socket.close()
+                print("[ÉXITO] Socket cerrado correctamente.")
+                
+        except (BrokenPipeError, ConnectionResetError) as e:
+            print(f"[ALERTA] El socket ya estaba roto o el cliente se desconectó abruptamente: {e}")
+        except Exception as e:
+            print(f"[ERROR] Error inesperado al cerrar el socket: {e}")
+        finally:
+            # 3. Actualización de estado en la lógica del juego
+            if indice_cliente is not None and hasattr(self, 'clientes'):
+                try:
+                    self.clientes[indice_cliente]["status"] = "desconectado"
+                    print(f"[LOG] Estado del jugador {indice_cliente} cambiado a 'desconectado'.")
+                except IndexError:
+                    print("[ERROR] No se pudo actualizar el estado: Índice de cliente inválido.")
+                    
+        return True
