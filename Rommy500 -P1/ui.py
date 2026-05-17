@@ -106,40 +106,52 @@ class Button:
 class InputBox:
     def __init__(self, x, y, w, h, font, text=""):
         self.rect = pygame.Rect(x, y, w, h)
+        self.base_width = w
         self.color_inactive = pygame.Color("#e35d59")
         self.color_active = pygame.Color("#F9AA33")
         self.color = self.color_inactive
         self.text = text
         self.font = font
+        self.padding_x = 8
         self.txt_surface = font.render(text, True, pygame.Color("#000000"))
         self.active = False
         self.clock = None  # Inicializar el reloj como None
 
     def handle_event(self, event):
         if event.type == pygame.MOUSEBUTTONDOWN:
-            # Si el usuario hizo click dentro del rect, cambia el estado activo
+            # Activar/desactivar la caja con el clic
             if self.rect.collidepoint(event.pos):
                 self.active = not self.active
             else:
                 self.active = False
             self.color = self.color_active if self.active else self.color_inactive
+            
         if event.type == pygame.KEYDOWN:
             if self.active:
                 if event.key == pygame.K_RETURN:
-                    # Señalar al llamador que se quiere enviar el texto (no borrar aquí)
-                    return True
+                    # Al presionar Enter, devolvemos el texto para el mensaje
+                    temp_text = self.text
+                    # self.text = "" # Descomenta si quieres que se limpie al enviar
+                    return temp_text
+                
                 elif event.key == pygame.K_BACKSPACE:
                     self.text = self.text[:-1]
+                
                 else:
-                    # Añadir el carácter presionado
-                    self.text += event.unicode
-                # Volver a renderizar la surface del texto
-                self.txt_surface = self.font.render(self.text, True, pygame.Color("#000000"))
-        return False
+                    # Aceptar texto libre; el recorte visual se hace en draw()
+                    if event.unicode:
+                        self.text += event.unicode
+
+                # --- CRÍTICO: ACTUALIZACIÓN VISUAL ---
+                # Esta línea DEBE ejecutarse siempre que se presione una tecla
+                # para que la "foto" del texto se refresque en pantalla.
+                self.txt_surface = self.font.render(self.text, True, (0, 0, 0))
+        
+        return None
 
     def update(self):
-        width = max(200, self.txt_surface.get_width() + 10)
-        self.rect.w = width
+        # Mantener ancho fijo: si se auto-redimensiona, el texto "se sale" del layout.
+        self.rect.w = self.base_width
         # No usar self.clock ni lógica global aquí.
         # Sólo mantener la caja actualizada (la UI principal dibuja todo lo demás).
         return
@@ -202,7 +214,20 @@ class InputBox:
     def draw(self, screen):
         pygame.draw.rect(screen, pygame.Color("#FFFFFF"), self.rect, border_radius=12)
         pygame.draw.rect(screen, self.color, self.rect, 2, border_radius=12)
-        screen.blit(self.txt_surface, (self.rect.x + 8, self.rect.y + (self.rect.h - self.txt_surface.get_height())//2))
+        # Renderizar sólo el tramo visible (scroll horizontal mostrando el final).
+        inner_w = max(0, self.rect.w - (self.padding_x * 2))
+        visible_text = self.text
+        while visible_text and self.font.size(visible_text)[0] > inner_w:
+            visible_text = visible_text[1:]
+
+        text_surf = self.font.render(visible_text, True, (0, 0, 0))
+        old_clip = screen.get_clip()
+        screen.set_clip(self.rect)
+        screen.blit(
+            text_surf,
+            (self.rect.x + self.padding_x, self.rect.y + (self.rect.h - text_surf.get_height()) // 2),
+        )
+        screen.set_clip(old_clip)
 
 # ===========================
 # Clase que maneja la interfaz
@@ -249,6 +274,7 @@ class   UIManager:
         self.wrong_password_until = 0
         self.fullserver_until = 0         
         self.no_server_until = 0  
+        self.invalid_players_until = 0
 
         click_path = os.path.join("assets", "sonido", "click.wav")
         self.click_sound = pygame.mixer.Sound(click_path)      
@@ -780,6 +806,18 @@ class   UIManager:
         self.CREATE_BACK_BUTTON.check_hover(MENU_MOUSE_POS)
         self.CREATE_BACK_BUTTON.update(self.SCREEN)
 
+        # Aviso de validación para cantidad de jugadores (2 a 7)
+        now = pygame.time.get_ticks()
+        if getattr(self, "invalid_players_until", 0) > now:
+            warn_font = self.get_font(16)
+            warn_text = "Debe elegir entre 2 y 7 jugadores"
+            warn_surf = warn_font.render(warn_text, True, (35, 35, 35))
+            warn_rect = warn_surf.get_rect(center=(box_x + box_width // 2, btn_y + 42))
+            bg_rect = warn_rect.inflate(20, 12)
+            pygame.draw.rect(self.SCREEN, (255, 244, 214), bg_rect, border_radius=10)
+            pygame.draw.rect(self.SCREEN, (210, 160, 70), bg_rect, 2, border_radius=10)
+            self.SCREEN.blit(warn_surf, warn_rect)
+
         return MENU_MOUSE_POS
     def draw_lobby(self):
         MENU_MOUSE_POS = pygame.mouse.get_pos()
@@ -1050,8 +1088,11 @@ o Descartar: Colocar una carta boca arriba en el centro de la mesa para finaliza
                             nameSala= "Sala1"
                         try:
                             max_players = int(self.max_players_input_box.text)
-                        except:
-                            max_players = 7
+                        except Exception:
+                            max_players = None
+                        if max_players is None or max_players < 2 or max_players > 7:
+                            self.invalid_players_until = pygame.time.get_ticks() + 2500
+                            continue
                         exito = self.network_manager.start_server(nameHost, password, max_players,nameSala)
                         print("Servidor creado" if exito else "Error al crear servidor")
                         self.current_screen = "lobby"
@@ -1148,8 +1189,11 @@ o Descartar: Colocar una carta boca arriba en el centro de la mesa para finaliza
                         password = self.password_input_box.text  # Contraseña
                         try:
                             max_players = int(self.max_players_input_box.text)  # Convierte jugadores a número
-                        except:  # Si no se escribe un número válido
-                            max_players = 7  # Valor por defecto
+                        except Exception:  # Si no se escribe un número válido
+                            max_players = None
+                        if max_players is None or max_players < 2 or max_players > 7:
+                            self.invalid_players_until = pygame.time.get_ticks() + 2500
+                            continue
                         # Intenta crear el servidor
                         exito = self.network_manager.start_server(nameHost, password, max_players,nameSala)
                         print("Servidor creado" if exito else "Error al crear servidor")
