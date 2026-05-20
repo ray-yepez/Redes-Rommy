@@ -110,7 +110,10 @@ class GameClient:
                 "type": MessageType.PONG.value,
                 "timestamp": data.get("timestamp")
             }
-            self.send(pong)
+            if not self.transport.send_atomic(self.state.player, pong):
+                logger.warning("Fallo al enviar PONG de respuesta al PING del Host.")
+            return
+
         elif msg_type == MessageType.START_GAME.value:
             self.state.msgStartGame.update(data)
             self.state.receivedData = data

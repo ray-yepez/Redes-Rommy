@@ -214,7 +214,7 @@ class GameServer:
             latencia = (time.time() - ping_time) * 1000  
 
             self.state.update_last_activity(player.player_id, time.time())
-            print(f"Latencia de {player.name}: {latencia:.2f} ms")
+            logger.info(f"Latencia de {player.name}: {latencia:.2f} ms")
             logger.debug(f"PONG recibido de {player.name}")
             # No retransmitir PONG
             return
