@@ -217,11 +217,24 @@ class Elemento_texto:
 
     def dibujar(self):
         if self.visible:
-            # Dibujar fondo y borde
-            pygame.draw.rect(self.pantalla, self.color_actual, self.rect, border_radius=self.radio_borde)
-            if self.grosor_borde > 0:
-                pygame.draw.rect(self.pantalla, self.color_borde_actual, self.rect, 
-                                self.grosor_borde, border_radius=self.radio_borde)
+            # Dibujar fondo solo si tiene color
+            if self.color_actual is not None:
+                pygame.draw.rect(
+                    self.pantalla,
+                    self.color_actual,
+                    self.rect,
+                    border_radius=self.radio_borde
+                )
+
+            # Dibujar borde solo si tiene grosor y color
+            if self.grosor_borde > 0 and self.color_borde_actual is not None:
+                pygame.draw.rect(
+                    self.pantalla,
+                    self.color_borde_actual,
+                    self.rect,
+                    self.grosor_borde,
+                    border_radius=self.radio_borde
+                )
             
             # Dibujar texto
             if hasattr(self, 'superficies_texto_planas'):

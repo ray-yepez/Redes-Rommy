@@ -45,8 +45,12 @@ from logica_interfaz.core.controles_ui.alertas import AlertasMixin
 from logica_interfaz.core.logica_juego.rondas import RondasMixin
 from logica_interfaz.core.ui.menu_adaptado import Menu_adaptado
 
+# ===== MIXIN ORDENAMIENTO (NUEVO) =====
+from logica_interfaz.core.controles_ui.ordenamiento_mano import OrdenamientoManoMixin
+
 
 class Mesa_interfaz(
+    OrdenamientoManoMixin,      # <── NUEVO: ordenamiento de mano del jugador
     PosicionamientoMixin,
     UtilidadesMixin,
     CargaDatosMixin,
@@ -65,7 +69,7 @@ class Mesa_interfaz(
     RondasMixin
 ):
     _cartas_imagenes = None  # cache estático
-    
+
     def __init__(self, un_juego):
         # Inicialización de datos del juego interfaz-redes
         self.elementos_mesa = {
@@ -83,7 +87,7 @@ class Mesa_interfaz(
             "jugadas_jugadores":[],
             "nro_jugada":1,
         }
-        
+
         # Objetos del juego
         self.carta_descarte = None
         self.lista_jugadores_objetos = []
@@ -106,17 +110,21 @@ class Mesa_interfaz(
 
         # Contador de puntos
         self.puntos_acumulados = 0
-        self.puntos_ronda_actual = 0 
+        self.puntos_ronda_actual = 0
 
         self.menu_opciones = None
         self.menu_puntuacion = None
         self.menus_activos = []  # Lista para menus activos de la mesa
         self.boton_menu_opciones = None
-        
+
         # Elementos de interfaz
         self.botones_accion = {}
         self.accion_seleccionada = None
-        
+
+        # Estado del ordenamiento (instancia propia para no compartir con otras instancias)
+        self._modo_orden = 'trios'
+        self._boton_ordenar = None
+
         # Referencia de elementos surface mesa-ventana
         self.referencia_elementos = {
                     "elementos_mis_cartas":[],
@@ -133,7 +141,7 @@ class Mesa_interfaz(
                     "indicador_turno":None,
                     "contador_puntos":None
         }
-        
+
         # Configuración de posiciones
         self._inicializar_configuracion_posiciones()
 

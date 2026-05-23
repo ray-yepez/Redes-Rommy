@@ -1222,10 +1222,12 @@ o Descartar: Colocar una carta boca arriba en el centro de la mesa para finaliza
                                 self.network_manager.stop_broadcast()
                                 print("Cerrada la transmision de la informacion del servido. Juego iniciado")
                                 return "launch_ui2"  
+                                return "launch_ui2"  
 
                             else:
                                 print("Se necesitan al menos dos jugadores")
                         else:
+                            print("Esperando al host para iniciar el juego...")
                             print("Esperando al host para iniciar el juego...")
                         #+++++++++++++++++++++++++++++++++++++++++
                     elif self.SEND_MS_BUTTON.checkForInput(event.pos):  # Botón "enviar mensaje"
@@ -1291,6 +1293,9 @@ o Descartar: Colocar una carta boca arriba en el centro de la mesa para finaliza
                         self.message_input_box.text = ""
                         self.message_input_box.txt_surface = self.get_font(20).render("", True, (0,0,0))
                         print(f" Mensajes: {self.messages}")
+        process_message = self.process_received_messages()
+        if process_message == "launch_ui2":
+            return process_message
         process_message = self.process_received_messages()
         if process_message == "launch_ui2":
             return process_message
