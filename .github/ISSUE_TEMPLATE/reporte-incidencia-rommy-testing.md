@@ -7,14 +7,19 @@ assignees: ''
 
 ---
 
-** Datos del error **
+# Datos del error
 
 - **Fecha de incidencia**:
 - **ID Bug**: 
-** Severidad **
-Baja [ ] Media [ ]  Alta [ ] Crítico [ ]  
-** Prioridad ** 
-[ ]  Baja [ ] Media [ ] Alta 
+**Severidad**
+- [ ] Baja
+- [ ] Media 
+- [ ] Alta 
+- [ ] Crítico 
+**Prioridad** 
+-[ ] Baja
+- [ ] Media
+- [ ] Alta 
 
 # Descripción
 Descripción detallada del error
@@ -36,7 +41,9 @@ Líneas de la consola de depuración/ejecución relevantes
 Imágenes del juego o relevantes
 # Impacto
 **Frecuencia**
-Siempre [ ] A veces [ ] Raro [ ]
+- [ ] Siempre 
+- [ ] A veces 
+- [ ] Raro
 
 ** Descripción del impacto**:
 Cómo afecta al computador, jugadores, experiencia de juego, programas externos...
