@@ -17,7 +17,7 @@ assignees: ''
 - [ ] Alta 
 - [ ] Crítico 
 **Prioridad** 
--[ ] Baja
+- [ ] Baja
 - [ ] Media
 - [ ] Alta 
 
