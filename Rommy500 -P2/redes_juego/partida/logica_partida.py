@@ -138,43 +138,38 @@ class LogicaPartidaMixin:
 
     def mano_por_usuario(self, jugadores, manos, mazo):
         # ── CORRECCIÓN 1: usar índice directo en lugar de manos.pop()
-        # manos.pop() sacaba del final → las manos quedaban invertidas.
-        # Ahora usamos manos[idx] para que jugadores[0] reciba manos[0], etc.
-        #
-        # ── CORRECCIÓN 2: eliminar cartas hardcodeadas de prueba
-        # El bloque anterior sobreescribía self.manos con datos fijos
-        # (15 cartas al jugador 1, 9 al jugador 2), ignorando la repartición real.
-        # Ahora se usa exclusivamente el resultado de repartir_cartas().
+        """Asigna las manos repartidas a cada jugador y actualiza el estado de la mesa.
+        
+        FIX C-03: Se eliminaron las manos hardcodeadas de prueba.
+        FIX C-04: self.manos es SIEMPRE un dict {idx: [Carta, ...]} nunca una lista.
+        """
         cantidad_cartas_usuario = []
         manos_por_jugador = {}
 
-        for idx, jugador in enumerate(jugadores):
+        for jugador in jugadores:
             if self.clientes[jugador.nro_jugador - 1]["status"] != "activo":
                 manos_por_jugador[jugador.nro_jugador - 1] = []
             else:
-                # CORRECCIÓN 1: índice directo, no pop()
-                manos_por_jugador[jugador.nro_jugador - 1] = manos[idx]
+                manos_por_jugador[jugador.nro_jugador - 1] = manos.pop()
             mano_id = {
                 "cantidad_mano": len(manos_por_jugador[jugador.nro_jugador - 1]),
                 "id": jugador.nro_jugador,
                 "nombre": jugador.nombre_jugador
             }
             cantidad_cartas_usuario.append(mano_id)
-            print(
-                f'\nCartas del jugador {jugador.nro_jugador} - '
-                f'{jugador.nombre_jugador}: '
-                f'{[str(c) for c in manos_por_jugador[jugador.nro_jugador - 1]]}'
-            )
+            print(f'\nCartas del jugador {jugador.nro_jugador} - {jugador.nombre_jugador}: '
+                  f'{[str(c) for c in manos_por_jugador[jugador.nro_jugador - 1]]}')
 
-        # CORRECCIÓN 2: asignar las manos reales (sin hardcodear ni sobreescribir)
+        # FIX C-04: self.manos siempre es dict — nunca se sobrescribe con []
         self.manos = manos_por_jugador
         self.mazo = mazo
+
         jugardor_mano = ()
         for jugador in self.lista_jugadores_objetos_reordenados:
             if self.clientes[jugador.nro_jugador-1]["status"] == "activo":
                 jugardor_mano = (jugador.nro_jugador, jugador.nombre_jugador)
                 break
-        "self.mazo.cartas = []"
+
         # Ahora elementos_mesa se llena completo en un solo lugar
         self.mesa_juego.elementos_mesa.update({
             "cantidad_manos_jugadores": cantidad_cartas_usuario,
@@ -186,7 +181,7 @@ class LogicaPartidaMixin:
         print(f"\nElemento mesa actualizado: {self.mesa_juego.elementos_mesa}\n")
         # Enviar a cada cliente su mano inicial
         for cliente in self.clientes:
-            mano = self.manos[cliente['id'] - 1]
+            mano = self.manos.get(cliente['id'] - 1, [])
             try:
                 datos_serializables_mano = [c.to_dict() for c in mano]
             except:
@@ -456,7 +451,8 @@ class LogicaPartidaMixin:
                 prev_mano_id = None
             ronda = [1,2,3,4]
             try:
-                self.ronda = ronda[self.ronda]
+                # FIX N-10: ciclo correcto 1→2→3→4→1 sin IndexError
+                self.ronda = (self.ronda % 4) + 1
             except Exception:
                 self.ronda = 1
             # Encontrar índice del jugador mano actual en la lista (si no se encuentra, empezar desde 0)

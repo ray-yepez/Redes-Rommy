@@ -62,7 +62,10 @@ class ClienteMixin:
         buffer = ""
         while self.conectado:
             try:
-                data = self.socket_cliente.recv(4096)
+                data = self.socket_cliente.recv(65536)
+                if not data:
+                    print("[RED-CLIENTE] Servidor cerró la conexión.")
+                    break
                 buffer += data.decode('utf-8')
                 while '\n' in buffer:
                     mensaje_str, buffer = buffer.split('\n', 1)
@@ -71,14 +74,19 @@ class ClienteMixin:
                         self._manejo_mensaje_red(mensaje)
                         
             except Exception as e:
-                print(f"Error al recibir mensaje del servidor: {e}")
+                print(f"[RED-CLIENTE] Error al recibir mensaje del servidor: {e}")
                 import traceback
                 traceback.print_exc()
-                break
-                # Intentar reconexión automática
+                # FIX C-05: Intentar reconexión automática (código movido a lugar alcanzable)
                 if self.id_jugador is not None and self.socket_cliente is not None:
-                    ip_servidor = self.socket_cliente.getpeername()[0]
-                    ##self.intentar_reconexion(ip_servidor)
+                    try:
+                        ip_servidor = self.socket_cliente.getpeername()[0]
+                        print(f"[RED-CLIENTE] Intentando reconexión automática a {ip_servidor}...")
+                        self.intentar_reconexion(ip_servidor)
+                    except Exception as re:
+                        print(f"[RED-CLIENTE] No se pudo determinar IP para reconexión: {re}")
+                break
+
 
     def _manejo_mensaje_red(self, mensaje):
         # Método completo para procesar todos los mensajes del servidor
@@ -520,7 +528,7 @@ class ClienteMixin:
             self.mesa_juego.actualizar_jugadas(self.mesa_juego.mesa)
             for boton in list(self.mesa_juego.botones_accion.values()):
                 if boton in self.mesa_juego.mesa.botones:
-                    boton.accion == self.mesa_juego.crear_botones_despues_de_bajarse(self.mesa_juego.mesa)
+                    boton.accion = lambda: self.mesa_juego.crear_botones_despues_de_bajarse(self.mesa_juego.mesa)
                     self.mesa_juego.crear_botones_extender_jug(self.mesa_juego.mesa,opc=True)
         elif mensaje["type"] == "se_extendio":
             self.mesa_juego.elementos_mesa["cantidad_manos_jugadores"] = mensaje.get("cantidad_manos_jugadores")
@@ -537,7 +545,7 @@ class ClienteMixin:
             elif mensaje["trio_seguidilla"] == False and mensaje["seguidilla_seguidilla"] == False:
                 try:
                     if mensaje["ronda"] == 2:
-                        ronda == mensaje["ronda"] 
+                        ronda = mensaje["ronda"] 
                 except:
                     ronda = None
                 self.mesa_juego.crear_botones_elegir_pos_seguidilla(ronda, pos1 = mensaje["posicion_seguidilla"])    
@@ -564,7 +572,7 @@ class ClienteMixin:
             self.mesa_juego.crear_botones_seleccionar_jugada(self.mesa_juego.mesa)
             for boton in list(self.mesa_juego.botones_accion.values()):
                 if boton in self.mesa_juego.mesa.botones:
-                    boton.texto == "DESCARTAR"
+                    boton.texto = "DESCARTAR"
                     self.mesa_juego.crear_botones_seleccionar_jugada(self.mesa_juego.mesa)
         elif mensaje["type"] == "regresando_menu":
             print("Regresando al menú principal.")
@@ -622,56 +630,68 @@ class ClienteMixin:
                 self.mesa_juego.actualizar_jugadas(self.mesa_juego.mesa)
 
             
-    def encontrar_ip_servidor(self,un_juego):
+    def encontrar_ip_servidor(self, un_juego):
         socket_busqueda = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         socket_busqueda.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         socket_busqueda.bind(('', 5556)) # Escuchar en el mismo puerto que el anuncio
-        socket_busqueda.settimeout(5) # Esperar 5 segundos
+        socket_busqueda.settimeout(2.0) # Esperar 2 segundos para mayor responsividad
 
-        print("Buscando servidor en la red...")
-        while self.buscador:
-            try:
-                data, direccion_servidor = socket_busqueda.recvfrom(1024)
-                mensaje = json.loads(data.decode('utf-8'))
-                ip_encontrada = direccion_servidor[0]
-                nombre_partida = mensaje.get('partida', 'Desconocida')
-                nombre_host = mensaje.get('host', 'Host')
-                max_jugadores = mensaje.get('max_jugadores', 7)
-                jugadores = mensaje.get('jugadores', 0)
-                self.jugadores_desconectados = mensaje.get('id_jugadores_desconectados', {})
-                lista_jugadores = mensaje.get('lista_jugadores', [])
-                info = {"nombre": nombre_partida,"jugadores":jugadores,"max_jugadores":max_jugadores,"ip": ip_encontrada,"lista_jugadores":lista_jugadores,"creador":nombre_host}
-                servidor_encontrado = None
-                for server in self.conexiones_disponibles:
-                    if server['ip'] == ip_encontrada:
-                        servidor_encontrado = server
-                        break  # Se encontró, no es necesario seguir buscando
-                if mensaje.get('type') == 'RummyServer' and servidor_encontrado == None:
-                    print(f"Servidor encontrado en la IP: {ip_encontrada} - Partida: {nombre_partida} - Host: {nombre_host}")
-                    self.conexiones_disponibles.append(info)
-                    evento_py = pygame.event.Event(constantes.EVENTO_SALAS_ENCONTRADAS,salas=self.conexiones_disponibles)
-                    pygame.event.post(evento_py)
-                    print(f"Conexiones disponibles: {self.conexiones_disponibles}")
-                elif servidor_encontrado["jugadores"] != jugadores:
-                    print(f"Actualizando Partida {nombre_partida} ")
-                    servidor_encontrado["jugadores"] = jugadores
-                    servidor_encontrado["lista_jugadores"] = lista_jugadores
-                    evento_py = pygame.event.Event(constantes.EVENTO_SALAS_ENCONTRADAS,salas=self.conexiones_disponibles)
-                    pygame.event.post(evento_py)
-                else:
-                    print(f"Servidor ya listado: {ip_encontrada}")
+        print("[RED-CLIENTE] Buscando servidor en la red...")
+        try:
+            while self.buscador:
+                try:
+                    data, direccion_servidor = socket_busqueda.recvfrom(1024)
+                    mensaje = json.loads(data.decode('utf-8'))
+                    ip_encontrada = direccion_servidor[0]
+                    
+                    if mensaje.get('type') != 'RummyServer':
+                        continue
+                        
+                    nombre_partida = mensaje.get('partida', 'Desconocida')
+                    nombre_host = mensaje.get('host', 'Host')
+                    max_jugadores = mensaje.get('max_jugadores', 7)
+                    jugadores = mensaje.get('jugadores', 0)
+                    self.jugadores_desconectados = mensaje.get('id_jugadores_desconectados', {})
+                    lista_jugadores = mensaje.get('lista_jugadores', [])
+                    
+                    info = {
+                        "nombre": nombre_partida,
+                        "jugadores": jugadores,
+                        "max_jugadores": max_jugadores,
+                        "ip": ip_encontrada,
+                        "lista_jugadores": lista_jugadores,
+                        "creador": nombre_host
+                    }
+                    
+                    servidor_encontrado = None
+                    for server in self.conexiones_disponibles:
+                        if server['ip'] == ip_encontrada:
+                            servidor_encontrado = server
+                            break
 
+                    if servidor_encontrado is None:
+                        # FIX N-09: Si no está, lo agregamos
+                        print(f"Servidor encontrado en la IP: {ip_encontrada} - Partida: {nombre_partida} - Host: {nombre_host}")
+                        self.conexiones_disponibles.append(info)
+                        evento_py = pygame.event.Event(constantes.EVENTO_SALAS_ENCONTRADAS, salas=self.conexiones_disponibles)
+                        pygame.event.post(evento_py)
+                    elif servidor_encontrado["jugadores"] != jugadores or servidor_encontrado["lista_jugadores"] != lista_jugadores:
+                        # Si está y hay cambios, actualizamos
+                        servidor_encontrado["jugadores"] = jugadores
+                        servidor_encontrado["lista_jugadores"] = lista_jugadores
+                        evento_py = pygame.event.Event(constantes.EVENTO_SALAS_ENCONTRADAS, salas=self.conexiones_disponibles)
+                        pygame.event.post(evento_py)
+                        
+                except socket.timeout:
+                    # FIX: No limpiar la lista en timeout, solo iterar para checar self.buscador
+                    pass
+                except Exception as e:
+                    print(f"[RED-CLIENTE] Error buscando servidor: {e}")
+                    time.sleep(1) # Pequeña pausa en caso de error continuo
+        finally:
+            socket_busqueda.close()
+            print("[RED-CLIENTE] Búsqueda de servidores detenida.")
 
-            except socket.timeout:
-                    print("Tiempo de búsqueda agotado. Servidor no encontrado.")
-                    self.conexiones_disponibles = []
-                    evento_py = pygame.event.Event(constantes.EVENTO_SALAS_ENCONTRADAS,salas=self.conexiones_disponibles)
-                    pygame.event.post(evento_py)
-            except Exception as e:
-                print(f"Error buscando servidor: {e}")
-            finally:
-                time.sleep(5) # Esperar antes de la siguiente búsqueda
-    
 
     def intentar_reconexion(self, ip_servidor, intentos=5, espera=3):
         """

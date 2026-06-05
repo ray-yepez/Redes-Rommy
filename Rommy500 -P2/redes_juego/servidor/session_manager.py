@@ -119,15 +119,23 @@ class ServidorMixin:
             socket_anuncio.close()      
 
     def _procesar_mensajes(self):
+        from redes_juego.servidor.message_router import MessageRouter
+        enrutador = MessageRouter(self)
+        
         while self.ejecutandose:
             id_jugador = None
             mensaje = None
+            socket_cliente = None
             with self.candado:
                 if self.cola_mensajes:
-                    id_jugador, mensaje = self.cola_mensajes.pop(0)
+                    id_jugador, mensaje, socket_cliente = self.cola_mensajes.pop(0)
             if mensaje is not None:
-                if mensaje.get('type') == 'NuevoJugador1':
-                    print(f"Nuevo jugador conectado: ID {mensaje['id_jugador']}, Total jugadores: {mensaje['TotalJugadores']}")
+                # El enrutador central procesa TODA la lógica en este hilo seguro
+                enrutador.route_message(id_jugador, mensaje, socket_cliente)
+                
+            else:
+                import time
+                time.sleep(0.01) # Evitar 100% CPU cuando la cola está vacía
     
     def verificar_inicio_partida(self):
         if len(self.clientes) >= self.max_jugadores and self.estado_partida == False:
@@ -154,3 +162,4 @@ class ServidorMixin:
         #4. Prepara los datos a enviar
         elementos_mesa = self.mesa_juego.elementos_mesa
         print("Elementos de la mesa a enviar a los clientes:", elementos_mesa)
+
