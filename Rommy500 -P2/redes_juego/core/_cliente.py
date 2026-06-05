@@ -53,11 +53,20 @@ class ClienteMixin:
             self.hilo_recepcion = threading.Thread(target=self._recibir_mensajes)
             self.hilo_recepcion.daemon = True
             self.hilo_recepcion.start()
+            self.hilo_ping = threading.Thread(target=self._enviar_pings)
+            self.hilo_ping.daemon = True
+            self.hilo_ping.start()
             return True
         except Exception as e:
             print(f"Error al conectar al servidor: {e}")
             return False
-            
+    def _enviar_pings(self):
+        """Envía un heartbeat al servidor cada 5 segundos"""
+        while self.conectado:
+            time.sleep(5)
+            if self.conectado:
+                self.enviar_accion('Ping')
+
     def _recibir_mensajes(self):
         buffer = ""
         while self.conectado:

@@ -40,6 +40,10 @@ class ServidorMixin:
         hilo_procesar.daemon = True
         hilo_procesar.start()
 
+        hilo_heartbeat = threading.Thread(target=self._verificar_conexiones_activas)
+        hilo_heartbeat.daemon = True
+        hilo_heartbeat.start()
+
         print(f"Servidor iniciado en el puerto {self.puerto}, esperando jugadores...")
     
     def aceptar_conexiones(self):
@@ -68,6 +72,24 @@ class ServidorMixin:
     def _procesar_cliente(self, socket_cliente, id_jugador):
         """Wrapper que delega el procesamiento de mensajes al mixin correspondiente"""
         self._manejar_cliente_mensajes(socket_cliente, id_jugador)
+
+    def _verificar_conexiones_activas(self):
+        """Verifica los heartbeats de los clientes y los desconecta si no responden en 15 segundos"""
+        while self.ejecutandose:
+            tiempo_actual = time.time()
+            with self.candado:
+                for cliente in self.clientes:
+                    # Inicializar si no existe
+                    if 'last_activity' not in cliente:
+                        cliente['last_activity'] = tiempo_actual
+                    
+                    if tiempo_actual - cliente['last_activity'] > 15:
+                        print(f"Timeout (Heartbeat) detectado para cliente {cliente['id']} ({cliente['nombre']}). Desconectando...")
+                        # Inyectar mensaje de desconexión artificial
+                        self.cola_mensajes.append((cliente['id'], {'type': 'ClienteDesconectado'}, cliente['socket']))
+                        # Evitar spam de desconexiones
+                        cliente['last_activity'] = tiempo_actual + 99999
+            time.sleep(5)
     
     def desconectar_servidor(self):
         """Cierra el servidor y notifica a los clientes"""

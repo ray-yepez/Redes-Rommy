@@ -19,6 +19,16 @@ class MessageRouter:
         self.server = server_instance
 
     def route_message(self, id_jugador, mensaje, socket_cliente):
+        import time
+        
+        # Registrar actividad para el heartbeat
+        existing = next((c for c in self.server.clientes if c.get('id') == id_jugador), None)
+        if existing:
+            existing['last_activity'] = time.time()
+
+        if mensaje.get('type') == 'Ping':
+            return # Es solo un heartbeat, no procesar más
+        
         if mensaje.get('type') == 'ClienteDesconectado':
             print(f"Mensaje del cliente: {mensaje}")
             # Guardar datos del jugador desconectado
