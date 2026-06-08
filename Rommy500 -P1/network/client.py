@@ -72,12 +72,34 @@ class GameClient:
             logger.error(f"Error conectando al Host: {e}")
             return False, str(e)
     
+    def disconnect(self):
+        """Desconecta del Host."""
+        logger.info("Desconectando cliente...")
+        self.state.running = False
+        self.state.is_connected = False
+        if self.state.player:
+           try:
+              self.state.player.close()
+           except:
+               pass
+        self.state.player = None
+    # Limpiar colas (opcional, para evitar datos viejos)
+        while not self.state.incoming_messages.empty():
+           try:
+              self.state.incoming_messages.get_nowait()
+           except:
+              break
+        while not self.state.moves_game.empty():
+              try:
+                 self.state.moves_game.get_nowait()
+              except:
+                    break
     def _receive_loop(self):
         """Loop de recepción infinita (CORRE EN HILO)."""
         while self.state.running:
             try:
                 data = self.transport.recv_atomic(self.state.player)
-                if data is none :
+                if data is None:
                     break
                 
                 if isinstance(data, dict):
@@ -91,7 +113,7 @@ class GameClient:
                 logger.error(f"Error manejando el Host: {e}")
                 break
             
-        self.disconnect()
+            self.disconnect()
     def _process_message(self, data: dict):
         """Procesa y rutéa el mensaje recibido del Host."""
         if not isinstance(data, dict):
