@@ -86,6 +86,9 @@ class NetworkManager:
     
     def stop(self):
         """Detiene servidor y cliente."""
+        if self.state.is_host:
+            self._server.close_all("Servidor cerrado por el HOST")
+       
         self.state.running = False
         self.state.running_broadcast = False
         

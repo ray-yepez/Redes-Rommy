@@ -74,29 +74,24 @@ class GameClient:
     
     def _receive_loop(self):
         """Loop de recepción infinita (CORRE EN HILO)."""
-        while self.state.running and self.state.player:
+        while self.state.running:
             try:
-                self.state.player.settimeout(self.config.SOCKET_TIMEOUT)
                 data = self.transport.recv_atomic(self.state.player)
-                
-                if data is None:
-                    logger.info("El servidor cerró la conexión")
+                if data is none :
                     break
                 
-                self._process_message(data)
-                
-            except socket.timeout:
-                continue
-            except ConnectionResetError:
-                logger.warning("Conexión reseteada por el servidor")
-                break
+                if isinstance(data, dict):
+                    if data.get("type")== "host_disconnected":
+                        logger.warning("El host se desconectó, cerrando el juego...")
+                        self.state.add_incoming_message("host_disconnected", data)
+                        break
+                    else:
+                        self.state.add_incoming_message(data.get("type"), data)
             except Exception as e:
-                logger.error(f"Error recibiendo paquete: {e}")
-                continue
-        
-        self.state.is_connected = False
-        logger.info("Hilo de recepción del cliente finalizado")
-    
+                logger.error(f"Error manejando el Host: {e}")
+                break
+            
+        self.disconnect()
     def _process_message(self, data: dict):
         """Procesa y rutéa el mensaje recibido del Host."""
         if not isinstance(data, dict):
