@@ -121,6 +121,8 @@ class GameClient:
                 self.state.messagesServer.append(msgFormat)
                 if len(self.state.messagesServer) > 20:
                     self.state.messagesServer.pop(0)
+                    # CAMBIO CLAVE: Lo añadimos a la cola de movimientos para que la UI lo detecte
+            self.state.add_move(data, server=False)
         elif msg_type in [
             MessageType.ELECTION_CARDS.value,
             MessageType.SELECTION_UPDATE.value,
