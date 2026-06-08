@@ -250,3 +250,24 @@ class GameServer:
             if p.name == name:
                 return p
         return None
+    def close_all(self, reason="Servidor cerrado"):
+        logger.info(f"Cerrando todos los clientes: razón: {reason}")
+        clients = [p for p in self.state.get_connected_players() if not p.is_host]
+        shutdown_msg = {
+            "type": "host_disconnected",
+            "reason": reason,
+            "message": "El servidor se ha cerrado, se te enviara al menu principal."
+        }
+        for player in clients:
+            try:
+                self.transport.send_atomic(player.conn, shutdown_msg)
+            except Exception as e:  # Corregido: 'Exception' en lugar de 'exception'
+                logger.error(f"Error al cerrar el cliente {player.name}: {e}")
+        
+        with self.state._lock_players:
+            self.state.connected_players.clear()
+        if self.server_socket:
+            try:
+                self.server_socket.close()
+            except:
+                pass

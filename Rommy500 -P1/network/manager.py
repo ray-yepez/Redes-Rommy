@@ -85,26 +85,27 @@ class NetworkManager:
             self.state.remove_connected_player(pid)
     
     def stop(self):
-        """Detiene servidor y cliente."""
+   
+        if self.state.is_host:
+          self._server.close_all("Servidor cerrado por el HOST")  # ← Llamada a close_all
+    
         self.state.running = False
         self.state.running_broadcast = False
-        
-        # Cerrar sockets
-        if self._server.server_socket:
-            try:
-                self._server.server_socket.close()
-            except:
-                pass
-        
-        if self.state.player:
-            try:
-                self.state.player.close()
-            except:
-                pass
-        
-        logger.info("NetworkManager detenido")
     
-    # === Getters de estado (INTERFAZ COMPATIBLE) ===
+     # Cerrar sockets
+        if self._server.server_socket:
+         try:
+            self._server.server_socket.close()
+         except:
+            pass
+    
+        if self.state.player:
+           try:
+            self.state.player.close()
+           except:
+            pass
+    
+        logger.info("NetworkManager detenido")
     
     def get_incoming_messages(self):
         return self.state.get_incoming_messages()
