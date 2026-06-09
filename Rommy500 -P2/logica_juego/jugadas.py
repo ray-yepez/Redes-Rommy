@@ -1,4 +1,4 @@
-from logica_juego.cartas import Cartas
+from cartas import Cartas
 
 
 # ══════════════════════════════════════════════════════════════════════════════

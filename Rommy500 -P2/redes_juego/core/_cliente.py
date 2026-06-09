@@ -62,24 +62,52 @@ class ClienteMixin:
         buffer = ""
         while self.conectado:
             try:
-                data = self.socket_cliente.recv(4096)
-                buffer += data.decode('utf-8')
-                while '\n' in buffer:
-                    mensaje_str, buffer = buffer.split('\n', 1)
-                    if mensaje_str.strip():
-                        mensaje = json.loads(mensaje_str)
-                        self._manejo_mensaje_red(mensaje)
-                        
-            except Exception as e:
-                print(f"Error al recibir mensaje del servidor: {e}")
-                import traceback
-                traceback.print_exc()
+            # Usar timeout para detectar desconexiones
+             self.socket_cliente.settimeout(30)  # 30 segundos de timeout
+             data = self.socket_cliente.recv(4096)
+            
+             if not data:
+                # Conexión cerrada limpiamente por el servidor
+                print("[CLIENTE] Conexión cerrada por el servidor")
                 break
-                # Intentar reconexión automática
-                if self.id_jugador is not None and self.socket_cliente is not None:
-                    ip_servidor = self.socket_cliente.getpeername()[0]
-                    ##self.intentar_reconexion(ip_servidor)
-
+            
+             buffer += data.decode('utf-8')
+             while '\n' in buffer:
+                mensaje_str, buffer = buffer.split('\n', 1)
+                if mensaje_str.strip():
+                    mensaje = json.loads(mensaje_str)
+                    self._manejo_mensaje_red(mensaje)
+                    
+            except socket.timeout:
+             # Timeout normal - el servidor no envió datos, pero seguimos conectados
+             # Enviar un ping para verificar conexión
+                try:
+                   ping_msg = {'type': 'ping'}
+                   self.socket_cliente.send((json.dumps(ping_msg) + '\n').encode('utf-8'))
+                except:
+                    print("[CLIENTE] Timeout y no se pudo enviar ping - desconectando")
+                    break
+                continue
+            except ConnectionResetError:
+                 print("[CLIENTE] Conexión reseteada por el servidor")
+                 break
+            except BrokenPipeError:
+              print("[CLIENTE] Tubería rota - servidor desconectado")
+              break
+            except Exception as e:
+               print(f"[CLIENTE] Error al recibir mensaje del servidor: {e}")
+            import traceback
+            traceback.print_exc()
+            break
+    
+         # Limpiar al salir
+        self.conectado = False
+        if self.socket_cliente:
+           try:
+              self.socket_cliente.close()
+           except:
+            pass
+    print("[CLIENTE] Hilo de recepción finalizado")
     def _manejo_mensaje_red(self, mensaje):
         # Método completo para procesar todos los mensajes del servidor
         # Este método es muy largo (360+ líneas) y se mantiene completo aquí
@@ -620,6 +648,34 @@ class ClienteMixin:
             time.sleep(5)
             if mensaje.get("jugadas_jugadores") or mensaje.get("jugada"):
                 self.mesa_juego.actualizar_jugadas(self.mesa_juego.mesa)
+        elif mensaje['type'] == 'HostDesconectado':
+            print(f"Host desconectado: {mensaje.get('mensaje', 'El creador cerró la sala')}")
+            self.conectado = False
+    
+          # Mostrar mensaje al usuario si hay mesa_juego
+            if self.mesa_juego:
+              try:
+                  cartel = self.mesa_juego.crear_cartel_alerta(
+                          self.mesa_juego.mesa, 
+                          mensaje.get('mensaje', 'El creador de la sala ha cerrado la partida.\nSerás enviado al menú principal.'),
+                          ancho=600,
+                          mostrar_boton_cerrar=False
+                )
+                  cartel.mostrar()
+            
+              # Programar regreso al menú después de 3 segundos
+                  def volver_menu():
+                     try:
+                       self.mesa_juego.salir_partida()
+                     except Exception as e:
+                       print(f"Error volviendo al menú: {e}")
+            
+                  threading.Timer(3.0, volver_menu).start()
+              except Exception as e:
+                 print(f"Error mostrando cartel de host desconectado: {e}")
+        else:
+        # Si no hay mesa, simplemente desconectar
+         self.desconectar_cliente()        
 
             
     def encontrar_ip_servidor(self,un_juego):
