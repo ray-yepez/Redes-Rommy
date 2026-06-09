@@ -251,23 +251,33 @@ class GameServer:
                 return p
         return None
     def close_all(self, reason="Servidor cerrado"):
-        logger.info(f"Cerrando todos los clientes: razón: {reason}")
-        clients = [p for p in self.state.get_connected_players() if not p.is_host]
-        shutdown_msg = {
-            "type": "host_disconnected",
-            "reason": reason,
-            "message": "El servidor se ha cerrado, se te enviara al menu principal."
-        }
-        for player in clients:
-            try:
-                self.transport.send_atomic(player.conn, shutdown_msg)
-            except Exception as e:  # Corregido: 'Exception' en lugar de 'exception'
-                logger.error(f"Error al cerrar el cliente {player.name}: {e}")
+         logger.info(f"Cerrando todos los clientes: razón: {reason}")
+    
+     # Enviar mensaje de desconexión a TODOS los clientes (incluyendo otros hosts potenciales)
+         shutdown_msg = {
+        "type": "host_disconnected",
+        "reason": reason,
+        "message": "El servidor se ha cerrado, se te enviará al menú principal."
+         }
+    
+    # Enviar a todos los jugadores conectados (excepto al host mismo)
+         with self.state._lock_players:
+             for player in self.state.connected_players:
+                 if not player.is_host:
+                    try:
+                        self.transport.send_atomic(player.conn, shutdown_msg)
+                        logger.info(f"Mensaje de cierre enviado a {player.name}")
+                        player.conn.close()  # Cerrar inmediatamente después de enviar
+                    except Exception as e:
+                         logger.error(f"Error al cerrar cliente {player.name}: {e}")
         
-        with self.state._lock_players:
-            self.state.connected_players.clear()
-        if self.server_socket:
+        # Limpiar lista de jugadores
+             self.state.connected_players.clear()
+    
+    # Cerrar socket del servidor
+         if self.server_socket:
             try:
                 self.server_socket.close()
-            except:
-                pass
+                logger.info("Socket del servidor cerrado")
+            except Exception as e:
+               logger.error(f"Error cerrando socket del servidor: {e}")

@@ -86,26 +86,33 @@ class NetworkManager:
     
     def stop(self):
    
-        if self.state.is_host:
-          self._server.close_all("Servidor cerrado por el HOST")  # ← Llamada a close_all
+        logger.info("Deteniendo NetworkManager...")
     
+        if self.state.is_host:
+            self._server.close_all("Servidor cerrado por el HOST")
+    
+     # Detener flags de ejecución
         self.state.running = False
         self.state.running_broadcast = False
+        self.state.is_connected = False
     
-     # Cerrar sockets
-        if self._server.server_socket:
-         try:
-            self._server.server_socket.close()
-         except:
-            pass
-    
+    # Cerrar socket del cliente si existe
         if self.state.player:
-           try:
+          try:
             self.state.player.close()
-           except:
+            self.state.player = None
+          except:
             pass
     
-        logger.info("NetworkManager detenido")
+    # Cerrar socket del servidor si existe
+        if self._server.server_socket:
+          try:
+            self._server.server_socket.close()
+            self._server.server_socket = None
+          except:
+            pass
+    
+        logger.info("NetworkManager detenido correctamente")
     
     def get_incoming_messages(self):
         return self.state.get_incoming_messages()
