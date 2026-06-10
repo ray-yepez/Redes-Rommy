@@ -4,6 +4,7 @@ import socket
 import threading
 import json
 import copy
+import time
 from redes_juego import archivo_de_importaciones
 
 importar_desde_carpeta = archivo_de_importaciones.importar_desde_carpeta
@@ -21,10 +22,30 @@ class ProcesadorMensajesMixin:
         try:
             while self.ejecutandose:
                 data = socket_cliente.recv(4096)
-                if not data:
-                    break
+                if not data: break
+                
+                cadena_datos = data.decode('utf-8').strip()
+                if not cadena_datos: continue
+                
+                # 1. Filtro de Ping/Pong
+                if '"type": "PING_HOST"' in cadena_datos or "'type': 'PING_HOST'" in cadena_datos:
+                    socket_cliente.sendall(json.dumps({'type': 'PONG_HOST'}).encode('utf-8') + b'\n')
+                    continue
 
-                mensaje = json.loads(data.decode('utf-8'))
+                # 2. Parseo de JSON seguro
+                try:
+                    mensaje = json.loads(cadena_datos)
+                except json.JSONDecodeError:
+                    continue 
+
+                # 3. Lógica de mensajes
+                if mensaje.get('type') == 'PONG_HOST':
+                    tiempo_final = time.perf_counter()
+                    cliente = self.clientes[id_jugador-1]
+                    latencia = (tiempo_final - cliente.get('tiempo_ping_enviado', tiempo_final)) * 1000
+                    cliente['latencia'] = latencia
+                    print(f"Monitor Heartbeat - Latencia Jugador {id_jugador}: {latencia:.2f} ms")
+                    continue
                 nombre_jugador = mensaje.get('nombre', f'Jugador{id_jugador}')
                 with self.candado:
                     self.cola_mensajes.append((id_jugador, mensaje))
@@ -1298,9 +1319,23 @@ class ProcesadorMensajesMixin:
                                     })
         except Exception as e:
             print(f" ERROR en cliente al procesar mensaje {mensaje.get('type')}: {e}")
+            print(f"Error crítico en hilo de cliente {id_jugador}: {e}")
             print(f" Mensaje completo: {mensaje}")
             import traceback
             traceback.print_exc()  # Esto da la línea EXACTA del error
         finally:
                 pass
-
+        
+    def monitorear_latencias(self):
+        """El servidor solicita el PONG a todos sus clientes conectados."""
+        while self.ejecutandose:
+            with self.candado:
+                for cliente in self.clientes:
+                    if cliente['status'] == 'activo':
+                        try:
+                            # Enviamos un PING para forzar la respuesta
+                            cliente['socket'].sendall(json.dumps({'type': 'PING_HOST'}).encode('utf-8') + b'\n')
+                            cliente['tiempo_ping_enviado'] = time.perf_counter()
+                        except:
+                            cliente['status'] = 'desconectado'
+            time.sleep(5)

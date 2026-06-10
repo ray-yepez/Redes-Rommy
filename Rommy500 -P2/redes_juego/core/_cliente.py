@@ -70,19 +70,45 @@ class ClienteMixin:
                         mensaje = json.loads(mensaje_str)
                         self._manejo_mensaje_red(mensaje)
                         
+                if buffer.strip() and buffer.strip().startswith('{') and buffer.strip().endswith('}'):
+                        try:
+                            mensaje = json.loads(buffer.strip())
+                            self._manejo_mensaje_red(mensaje)
+                            buffer = "" # Limpiamos el buffer tras procesar
+                        except:
+                            pass # Seguimos esperando más datos
+                            
             except Exception as e:
                 print(f"Error al recibir mensaje del servidor: {e}")
-                import traceback
-                traceback.print_exc()
                 break
-                # Intentar reconexión automática
-                if self.id_jugador is not None and self.socket_cliente is not None:
-                    ip_servidor = self.socket_cliente.getpeername()[0]
-                    ##self.intentar_reconexion(ip_servidor)
 
     def _manejo_mensaje_red(self, mensaje):
         # Método completo para procesar todos los mensajes del servidor
         # Este método es muy largo (360+ líneas) y se mantiene completo aquí
+
+        # =====================================================================
+        # ─── INYECCIÓN DE RED PURA: INTERCEPTACIÓN DEL HEARTBEAT ───
+        # =====================================================================
+        
+        # --- NIVEL 1: FILTRO DE LATENCIA PRIORITARIO ---
+        if isinstance(mensaje, dict) and mensaje.get('type') == 'PONG':
+            latencia = (time.perf_counter() - self.tiempo_ultimo_ping) * 1000
+            print(f">>> Mi latencia al servidor: {latencia:.2f} ms")
+            reporte = {"type": "ReporteLatencia", "valor": latencia}
+            self.socket_cliente.sendall(json.dumps(reporte).encode('utf-8') + b'\n')
+            return
+            
+        if not hasattr(self, 'heartbeat_running') and mensaje.get('type') in ['Bienvenido', 'ManoInicial', 'NuevoJugador']:
+            self.iniciar_heartbeat()
+
+        if mensaje.get('type') == 'PING_HOST':
+        # Responder inmediatamente al Host
+            self.socket_cliente.sendall(json.dumps({'type': 'PONG_HOST'}).encode('utf-8') + b'\n')
+            return
+
+        # =====================================================================
+        # ─── FIN DE LA INTERCEPTACIÓN (EL CÓDIGO ORIGINAL CONTINÚA INTACTO) ───
+        # =====================================================================
         
         # Inicializar variable si no existe
         if not hasattr(self, 'descarto_recientemente'):
@@ -765,3 +791,24 @@ class ClienteMixin:
         self.desconectar_servidor()
         self.desconectar_cliente()
 
+    def iniciar_heartbeat(self):
+        """Inicializa el hilo de monitoreo de latencia."""
+        if not hasattr(self, 'heartbeat_running'):
+            self.heartbeat_running = True
+            import threading
+            hilo = threading.Thread(target=self._bucle_heartbeat, daemon=True)
+            hilo.start()
+            print("[Sistema] Hilo de latencia iniciado.")
+
+    def _bucle_heartbeat(self):
+        import time
+        while self.heartbeat_running:
+            try:
+                # Marcamos el tiempo antes de enviar
+                self.tiempo_ultimo_ping = time.perf_counter()
+                mensaje_ping = {"type": "PING"}
+                # Enviamos el ping por el socket del cliente
+                self.socket_cliente.sendall(json.dumps(mensaje_ping).encode('utf-8'))
+            except Exception as e:
+                pass
+            time.sleep(2) # Envía un ping cada 2 segundos
