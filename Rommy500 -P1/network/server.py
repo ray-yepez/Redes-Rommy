@@ -228,6 +228,9 @@ class GameServer:
                     self.state.messagesServer.pop(0)
             # Reenviar CHAT al resto
             data["playerName"] = player.name
+            # CAMBIO CLAVE: Lo añadimos a la cola de movimientos del Host
+            self.state.add_move(data, server=True)
+            # -------------------------------------------------
             for p in self.state.get_connected_players():
                 if not p.is_host and p.player_id != player.player_id:
                     try:
