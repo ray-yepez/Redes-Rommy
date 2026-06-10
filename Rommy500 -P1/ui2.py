@@ -97,8 +97,6 @@ last_taken_player = None
 #Cambio Boton Menu / Salir
 
 
-
-
 def show_menu_modal(screen, WIDTH, HEIGHT, ASSETS_PATH):
     import pygame
     import os
@@ -620,7 +618,7 @@ def draw_player_hand(player, rect, cuadros_interactivos=None, cartas_ref=None, o
             solapamiento = int(base_sep - (base_sep - min_sep) * (n - 6) / 6)
         total_width = card_width + (n - 1) * solapamiento
         if total_width > rect.width:
-            solapamiento = max(8, (rect.width - card_width) // (n - 1))
+            solapamiento = max(4, (rect.width - card_width) // (n - 1))
         start_x = rect.x + (rect.width - (card_width + (n - 1) * solapamiento)) // 2
     else:
         solapamiento = 0
@@ -940,7 +938,7 @@ def main(manager_de_red): # <-- Acepta el manager de red
     # Obtener los datos compartidos
     # jugadores n -> conn, addr, name, id
     jugadores = network_manager.connected_players
-    
+    print(f"Juego iniciado en UI2 con los jugadores reales: {jugadores}")
     from Card import Card
     from Player import Player
 
@@ -2440,7 +2438,7 @@ def main(manager_de_red): # <-- Acepta el manager de red
                                 zona_cartas[numero] = []
                                 continue
                             elif cartas_descartadas == '002':
-                                mensaje_temporal = "Para poder descartar un joker, debes descartar también otra carta normal"
+                                mensaje_temporal = "no puedes descartar el joker"
                                 mensaje_tiempo = time.time()
                                 for c in selected_cards:
                                         if c in visual_hand:
@@ -2498,6 +2496,27 @@ def main(manager_de_red): # <-- Acepta el manager de red
                                 zona_cartas[numero] = []
                                 continue
                             elif (jugador_local.isHand and jugador_local.canDiscard) or not can_discard(jugador_local, cartas_descartadas):
+                                
+                                # --- FIX CARTAS FANTASMA ---
+                                # Si el jugador descarta SIN haberse bajado, las cartas que quedaron
+                                # en las zonas de Trio/Seguidilla deben volver visibles en la mano.
+                                # Las cartas siguen en playerHand (nunca se quitaron), solo estaban
+                                # ocultas en visual_hand mediante cartas_ocultas. Al limpiar las zonas
+                                # y quitar las entradas de cartas_ocultas, vuelven a ser visibles.
+                                if not jugador_local.downHand:
+                                    idx_desc_local = 3 if (roundThree or roundFour) else 2
+                                    for iz in range(len(zona_cartas)):
+                                        if iz != idx_desc_local:  # No tocar la zona de descarte
+                                            for carta_zona in zona_cartas[iz]:
+                                                # Quitar de ocultas para que vuelva a mostrarse
+                                                if carta_zona in visual_hand:
+                                                    try:
+                                                        idx_v = visual_hand.index(carta_zona)
+                                                        cartas_ocultas.discard(idx_v)
+                                                    except ValueError:
+                                                        pass
+                                            zona_cartas[iz] = []
+                                # --- FIN FIX ---
                                 
                                 cartas_en_zonas_visuales = []
                                 for zona in zona_cartas:
