@@ -39,10 +39,15 @@ class Menu:
             nuevo_elemento = Clase(**kwargs)
             self.botones.append(nuevo_elemento)
         return nuevo_elemento
+    
     def dibujar_fondo(self):
         """Dibuja solo el fondo y el borde del menú"""
-        pygame.draw.rect(self.pantalla, self.fondo_color, self.menu, border_radius=self.redondeo)
-        if self.grosor_borde > 0 :
+        # Solo dibujamos el rectángulo si fondo_color no es None
+        if self.fondo_color is not None:
+            pygame.draw.rect(self.pantalla, self.fondo_color, self.menu, border_radius=self.redondeo)
+            
+        # El borde se sigue dibujando si tiene grosor, esto ayuda a delimitar el menú sobre el fondo
+        if self.grosor_borde > 0:
             pygame.draw.rect(self.pantalla, self.borde_color, self.menu, self.grosor_borde, border_radius=self.redondeo)
 
     def dibujar_botones(self):
@@ -74,8 +79,8 @@ class Menu:
         if not self.visible:
             return
         self.dibujar_fondo()
-        self.dibujar_botones()
         self.dibujar_imagenes()
+        self.dibujar_botones()
         # Dibujar overlays (si existen) al final para que queden por encima de todo
         try:
             self.dibujar_overlays()
