@@ -1,7 +1,15 @@
 """Módulo interno para recepción de mensajes del juego (Productor)"""
 
 import json
-from redes_juego.logging_config import logger
+import copy
+from redes_juego import archivo_de_importaciones
+
+importar_desde_carpeta = archivo_de_importaciones.importar_desde_carpeta
+Carta = importar_desde_carpeta(
+    nombre_archivo="cartas_interfaz.py",
+    nombre_clase="Cartas_interfaz",
+    nombre_carpeta="logica_interfaz"
+)
 
 class ProcesadorMensajesMixin:
     """Mixin con métodos para recibir mensajes y encolarlos (Productor)"""
@@ -11,14 +19,23 @@ class ProcesadorMensajesMixin:
         buffer = ""
         try:
             while self.ejecutandose:
-                try:
-                    data = socket_cliente.recv(65536)
-                except OSError:
-                    break
+                data = socket_cliente.recv(4096)
                 if not data:
                     break
 
-                buffer += data.decode('utf-8')
+                mensaje = json.loads(data.decode('utf-8'))
+                nombre_jugador = mensaje.get('nombre', f'Jugador{id_jugador}')
+                with self.candado:
+                    self.cola_mensajes.append((id_jugador, mensaje))
+                    
+                    if mensaje.get('type') == 'ClienteDesconectado':
+                        print(f"Mensaje del cliente: {mensaje}")
+                        # Guardar datos del jugador desconectado
+                        self.jugadores_desconectados[id_jugador] = {
+                            'estado_juego': self.estado_juego,
+                            'nombre': self.clientes[id_jugador-1]['nombre'] if id_jugador-1 < len(self.clientes) else nombre_jugador
+                        }
+                        print(self.clientes)
 
                 while '\n' in buffer:
                     linea, buffer = buffer.split('\n', 1)
@@ -64,4 +81,10 @@ class ProcesadorMensajesMixin:
                         logger.error(f"JSON inválido de cliente {id_jugador}: {e}")
                         continue
         except Exception as e:
-            logger.error(f"Error en recepción de cliente {id_jugador}: {e}")
+            print(f" ERROR en cliente al procesar mensaje {mensaje.get('type')}: {e}")
+            print(f" Mensaje completo: {mensaje}")
+            import traceback
+            traceback.print_exc()  # Esto da la línea EXACTA del error
+        finally:
+                pass
+
