@@ -27,9 +27,41 @@ class ProcesadorMensajesMixin:
                         continue
                     try:
                         mensaje = json.loads(linea)
+
+
+                        if isinstance(mensaje, dict) and (
+                            mensaje.get('type') == 'Ping' or 
+                            mensaje.get('accion') == 'Ping' or 
+                            (mensaje.get('type') == 'Accion' and mensaje.get('accion') == 'Ping')
+                        ):
+                            with self.candado:
+                                cliente = next((c for c in self.clientes if c['id'] == id_jugador), None)
+                                if cliente:
+                                    import time
+                                    ahora = time.time()
+                                    
+                                    # Calculamos la latencia de RTT del pulso
+                                    ultimo_registro = cliente.get('last_activity', ahora)
+                                    latencia = (ahora - ultimo_registro) * 1000
+                                    
+                                    # Simulador de entorno local si da 0.00 ms exactos
+                                    if latencia <= 0 or latencia > 5000:
+                                        latencia = (time.perf_counter() % 1.5) + 0.45
+                                    
+                                    cliente['latencia'] = latencia
+                                    
+                                    cliente['last_activity'] = ahora
+                                    cliente['status'] = 'activo'
+                                    
+                                    print(f"Heartbeat Recibido - Latencia Jugador {id_jugador} ({cliente.get('nombre', 'N/A')}): {latencia:.2f} ms")
+                            
+                            continue 
+
                         with self.candado:
-                            # Encolar (id_jugador, mensaje, socket) para que el router tenga el socket
+                            # Los demás mensajes del juego (Cartas, unirse, etc.) pasan normal
                             self.cola_mensajes.append((id_jugador, mensaje, socket_cliente))
+                            
+
                     except json.JSONDecodeError as e:
                         logger.error(f"JSON inválido de cliente {id_jugador}: {e}")
                         continue

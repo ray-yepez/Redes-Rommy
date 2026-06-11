@@ -19,46 +19,57 @@ class Discovery:
         self.config = config or NetworkConfig()
         self.discovered_servers = []
     
-    def start_broadcast(self):
+    def start_broadcast(self ):
         """Inicia el broadcast periódico de la sala (SOLO HOST, CORRE EN HILO)."""
+        # Evitar iniciar múltiples hilos de broadcast si ya hay uno corriendo
+        if getattr(self.state, "running_broadcast", False):
+            logger.debug("El hilo ya se encuentra activo. Evitando duplicarlo.")
+            return
+
+        #ACTIVAR LA BANDERA PARA QUE EL HILO DE BROADCAST SE EJECUTE
+        self.state.running_broadcast = True
+
         def broadcast_loop():
             sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) # Permitir reuso de puerto
             sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
             
-            while self.state.running_broadcast:
-                try:
-                    # Determinar IP local del HOST para publicarla
-                    local_ip = "127.0.0.1"
+            try:
+                while self.state.running_broadcast:
                     try:
-                        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                        s.connect(('10.255.255.255', 1))
-                        local_ip = s.getsockname()[0]
-                        s.close()
-                    except Exception:
-                        pass
-                    
-                    server_data = {
-                        "name": self.state.gameName or "Sala de Rummy 500",
-                        "playerName": self.state.playerName or "Host",
-                        "ip": local_ip,
-                        "port": self.config.TCP_PORT,
-                        "max_players": self.state.max_players or 4,
-                        "currentPlayers": len(self.state.get_connected_players()),
-                    }
-                    
-                    packet = json.dumps(server_data).encode('utf-8')
-                    # Broadcastear al puerto definido
-                    sock.sendto(packet, ('<broadcast>', self.config.BROADCAST_PORT))
-                    logger.debug(f"Broadcast enviado UDP: Sala '{server_data['name']}' IP {server_data['ip']}")
-                    
-                    time.sleep(self.config.BROADCAST_INTERVAL)
-                except Exception as e:
-                    logger.error(f"Error en broadcast UDP: {e}")
-                    time.sleep(1) # Prevenir bucle de alto consumo en caso de error
-            
-            sock.close()
+                        # Determinar IP local del HOST para publicarla
+                        local_ip = "127.0.0.1"
+                        try:
+                            s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                            s.connect(('10.255.255.255', 1))
+                            local_ip = s.getsockname()[0]
+                            s.close()
+                        except Exception:
+                            pass
+                        
+                        server_data = {
+                            "name": self.state.gameName or "Sala de Rummy 500",
+                            "playerName": self.state.playerName or "Host",
+                            "ip": local_ip,
+                            "port": self.config.TCP_PORT,
+                            "max_players": self.state.max_players or 4,
+                            "currentPlayers": len(self.state.get_connected_players()),
+                        }
+                        
+                        packet = json.dumps(server_data).encode('utf-8')
+                        # Broadcastear al puerto definido
+                        sock.sendto(packet, ('<broadcast>', self.config.BROADCAST_PORT))
+                        logger.info(f"Broadcast enviado UDP: Sala '{server_data['name']}' IP {server_data['ip']}")
+                        
+                        time.sleep(self.config.BROADCAST_INTERVAL)
+                    except Exception as e:
+                        logger.error(f"Error en broadcast UDP: {e}")
+                        time.sleep(1) # Prevenir bucle de alto consumo en caso de error
+            finally:
+                # DESACTIVAR LA BANDERA PARA QUE EL HILO DE BROADCAST SE DETENGA
+                self.state.running_broadcast = False
+                sock.close()
         
-        self.state.running_broadcast = True
         threading.Thread(target=broadcast_loop, daemon=True).start()
     
     def discover_servers(self, timeout: int = 5):

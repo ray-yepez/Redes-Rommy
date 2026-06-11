@@ -20,6 +20,19 @@ class MessageRouter:
 
     def route_message(self, id_jugador, mensaje, socket_cliente):
         import time
+
+        if mensaje.get('type') == 'PONG_HOST':
+            servidor = getattr(self, 'server', None) or getattr(self, 'servidor', None)
+            if servidor:
+                with servidor.candado:
+                    cliente = next((c for c in servidor.clientes if c['id'] == id_jugador), None)
+                    if cliente and 'tiempo_ping_enviado' in cliente:
+                        import time
+                        tiempo_final = time.perf_counter()
+                        latencia = (tiempo_final - cliente['tiempo_ping_enviado']) * 1000
+                        cliente['latencia'] = latencia
+                        print(f"Heartbeat Enviado - Latencia Jugador {id_jugador} ({cliente.get('nombre', 'N/A')}): {latencia:.2f} ms")
+            return
         
         # Registrar actividad para el heartbeat
         existing = next((c for c in self.server.clientes if c.get('id') == id_jugador), None)
