@@ -237,7 +237,9 @@ class   UIManager:
         # Dimensiones de la pantalla
         self.SCREEN_WIDTH = screen_width
         self.SCREEN_HEIGHT = screen_height
-        
+        self.ASSETS_PATH = os.path.join(os.path.dirname(__file__), "assets")
+        self.FONT_FILE = os.path.join(self.ASSETS_PATH, "PressStart2P-Regular.ttf")
+        self.cacheDeFuentes = {}
         # Manager de red (para conectar con el servidor, enviar/recibir datos)
         self.network_manager = network_manager
         
@@ -954,8 +956,68 @@ class   UIManager:
             self.LOBBY_BACK_BUTTON.check_hover(MENU_MOUSE_POS)
             self.LOBBY_BACK_BUTTON.update(self.SCREEN)
 
-            return MENU_MOUSE_POS
+        # Mostrar aviso de conexión (si existe) centrado en la pantalla
+            try:
+                self.avisoDeConexion(getattr(self.network_manager, 'mensaje', ''), getattr(self.network_manager, 'tiempoDelMensaje', 0))
+            except Exception:
+                print("Error mostrando aviso de conexióooOOoOoOOoOooOOoooOoOoOoOoOOoOoOooOoOoOooOn")
+                pass
 
+            return MENU_MOUSE_POS
+    ####################CAMBIOS PARA EL MENSAJE EN EL LOBBY##################################
+    def lobbyMessage(self, text, max_chars = 40):
+            words = text.split()
+            if not words:
+                return []
+            lines = []
+            cur = words[0]
+            for w in words[1:]:
+                if len(cur) + 1 + len(w) <= max_chars:
+                    cur += " " + w
+                else:
+                    lines.append(cur)
+                    cur = w
+            lines.append(cur)
+            return lines
+
+    def get_game_font(self, size):
+        """Devuelve pygame.font.Font cargada desde assets o SysFont si falla; cachea por tamaño."""
+        if size in self.cacheDeFuentes:
+            return self.cacheDeFuentes[size] #TENGO QUE ARREGLAR VARIAS COSAS AQUÍ CON LOS SELF DUPLICADOS
+        try:
+            if os.path.exists(self.FONT_FILE):
+                f = pygame.font.Font(self.FONT_FILE, size)
+            else:
+                f = pygame.font.SysFont("arial", size)
+        except Exception:
+            f = pygame.font.SysFont("arial", size)
+        self.cacheDeFuentes[size] = f
+        return f
+    
+    def avisoDeConexion(self, mensaje, tiempo):
+        if not mensaje or not tiempo:
+            return
+        try:
+            if time.time() - tiempo < 5:
+                font_msg = self.get_game_font(18)
+                lines = self.lobbyMessage(mensaje)
+                line_h = font_msg.get_linesize()
+                base_x = self.SCREEN_WIDTH // 2
+                base_y = self.SCREEN_HEIGHT // 2 + 160
+                total_h = line_h * len(lines)
+                start_y = base_y - total_h // 2
+                for i, line in enumerate(lines):
+                    surf = font_msg.render(line, True, (255, 255, 255))
+                    rect = surf.get_rect(center=(base_x, start_y + i * line_h))
+                    # borde oscuro alrededor (sutil)
+                    for dx, dy in [(-1,0),(1,0),(0,-1),(0,1),(-1,-1),(1,-1),(-1,1),(1,1)]:
+                        self.SCREEN.blit(font_msg.render(line, True, (165, 42, 42)), (rect.x + dx, rect.y + dy))
+                    self.SCREEN.blit(surf, rect)
+        except Exception:
+            # No bloquear la UI si hay un error en el render
+            return
+    #############################LOS CAMBIOS DEL MENSAJE DEL LOBBY TERMINAN AQUÍ#############################################
+    
     def options(self):
         pygame.display.set_caption("Opciones")
         # Texto completo de reglas (se puede ajustar)
@@ -1257,6 +1319,8 @@ o Descartar: Colocar una carta boca arriba en el centro de la mesa para finaliza
                             msg = self.message_input_box.text.strip()
                             if msg:
                                 self.network_manager.send_chat_message(msg)
+                                #if hasattr(self, 'messages'):
+                                #    self.messages = network_manager.messagesServer()
                                 self.message_input_box.text = ""
                                 self.message_input_box.txt_surface = self.get_font(20).render("", True, (0,0,0))
                                 if self.network_manager.player:
@@ -1265,6 +1329,9 @@ o Descartar: Colocar una carta boca arriba en el centro de la mesa para finaliza
                                         formattedMsg = f"Tú: {msg}"
                                         with self.chatLock:
                                             self.network_manager.messagesServer.append(formattedMsg)
+                                            #if hasattr(self, 'messages'):
+                                            #    self.messages = network_manager.messagesServer()
+                            print(f" Mensajes actuales: {self.network_manager.messagesServer}")
 
            # Manejo de inputs de texto dependiendo de la pantalla
             if self.current_screen == "join":  
@@ -1285,18 +1352,21 @@ o Descartar: Colocar una carta boca arriba en el centro de la mesa para finaliza
                     msg = self.message_input_box.text.strip()
                     if msg != "":
                         self.network_manager.send_chat_message(msg)
-                        
+                        # if hastatt(self, 'messages'):
+                        #     self.messages = network_manager.messagesServer()
                         self.message_input_box.text = ""
                         self.message_input_box.txt_surface = self.get_font(20).render("", True, (0,0,0))
                         
                         if getattr(self.network_manager, "player", False):
                             try:
-                                success = self.network_manager.sendData(("chat_messages", msg))
+                                # Enviamos el diccionario estructurado
+                                success = self.network_manager.sendData(paquete_chat)
                             except Exception:
                                 success = False
+
                             if success:
-                                formattedMsg = f"Tú: {msg}"
                                 with self.chatLock:
+                                    formattedMsg = f"Tú: {msg}"
                                     self.network_manager.messagesServer.append(formattedMsg)
                         # limpiar input box
                         self.message_input_box.txt_surface = self.get_font(20).render("", True, (0,0,0))
