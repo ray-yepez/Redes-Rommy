@@ -106,8 +106,6 @@ class NetworkState:
         with self._lock_players:
             self.connected_players.append(player)
             logger.info(f"Jugador agregado a la partida: {player.name} (ID: {player.player_id})")
-        
-
     
     def remove_connected_player(self, player_id: int):
         """Elimina a un jugador por su ID (ej: cuando se desconecta)."""

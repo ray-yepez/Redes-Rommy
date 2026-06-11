@@ -938,7 +938,7 @@ def main(manager_de_red): # <-- Acepta el manager de red
     # Obtener los datos compartidos
     # jugadores n -> conn, addr, name, id
     jugadores = network_manager.connected_players
-    
+    print(f"Juego iniciado en UI2 con los jugadores reales: {jugadores}")
     from Card import Card
     from Player import Player
 
@@ -1054,6 +1054,22 @@ def main(manager_de_red): # <-- Acepta el manager de red
     btn_ordenar = pygame.Rect(WIDTH - 190, HEIGHT - 160, 170, 40)
 
     while running:
+        # ─── BUGFIX: CONTROL DE DESCONEXIÓN (HOST Y CLIENTE) ─────────────────
+        if network_manager is not None:
+            if network_manager.is_host:
+                # El Host monitorea que los clientes no se hayan ido
+                if len(network_manager.connected_players) < 2:
+                    print("\n[ALERT] Clientes desconectados. Quedan menos de 2 jugadores. Abortando...")
+                    network_manager.game_started = False
+                    running = False
+                    break
+            else:
+                # El Cliente monitorea seguir conectado al Host
+                if not network_manager.is_connected:
+                    print("\n[ALERT] Conexión con el Host perdida. Abortando partida...")
+                    network_manager.game_started = False
+                    running = False
+                    break
         # --- SOLO FASE DE ELECCIÓN ---
         update_descartar_visibility(zona_cartas, roundThree, roundFour)
         update_comprar_visibility()

@@ -1284,38 +1284,51 @@ o Descartar: Colocar una carta boca arriba en el centro de la mesa para finaliza
                                 self.network_manager.stop_broadcast()
                                 print("Cerrada la transmision de la informacion del servido. Juego iniciado")
                                 return "launch_ui2"  
+                                return "launch_ui2"  
 
                             else:
                                 print("Se necesitan al menos dos jugadores")
                         else:
                             print("Esperando al host para iniciar el juego...")
+                            print("Esperando al host para iniciar el juego...")
                         #+++++++++++++++++++++++++++++++++++++++++
                     elif self.SEND_MS_BUTTON.checkForInput(event.pos):  # Botón "enviar mensaje"
                         msg = self.message_input_box.text.strip()
                         if msg:
-                            # Enviando mensajes del servidor/jugador
-                            if self.network_manager.server:
-                                formattedMsg = f"{self.network_manager.playerName}: {msg}" 
-                                with self.chatLock:
-                                    self.network_manager.messagesServer.append(f"Tú: {msg}")
-                                    print(f"en la lista de mensajes: {self.messages}")
-                                
-                                # Transmitiendo a todos los jugadores
-                                self.network_manager.broadcast_message(formattedMsg)
+                            # 1. Crear el paquete con el formato correcto que la red espera interceptar
+                            paquete_chat = {
+                                "type": "CHAT",
+                                "mensaje": msg,
+                                "playerName": self.network_manager.playerName
+                            }
 
-                            if self.network_manager.player:
-                                success = self.network_manager.sendData(("chat_messages",msg))
+                            # 2. Lógica si eres el Servidor / Host
+                            if self.network_manager.server:
+                                with self.chatLock:
+                                    # Agregamos visualmente en nuestra pantalla local como "Tú"
+                                    self.network_manager.messagesServer.append(f"Tú: {msg}")
+                                    # Si tu UI lee de self.messages, asegúrate de mantenerlo sincronizado:
+                                    if hasattr(self, 'messages'):
+                                        self.messages.append(f"Tú: {msg}")
+
+                                # Transmitimos el DICCIONARIO estructurado a todos los clientes conectados
+                                self.network_manager.broadcast_message(paquete_chat)
+
+                            # 3. Lógica si eres un Cliente (Player)
+                            elif self.network_manager.player:
+                                # Enviamos el DICCIONARIO estructurado en lugar de la tupla anterior
+                                success = self.network_manager.sendData(paquete_chat)
                                 if success:
-                                    formattedMsg = f"Tú: {msg}"
                                     with self.chatLock:
-                                        self.network_manager.messagesServer.append(formattedMsg)
+                                        self.network_manager.messagesServer.append(f"Tú: {msg}")
+                                        if hasattr(self, 'messages'):
+                                            self.messages.append(f"Tú: {msg}")
 
                             # Limpiar caja de texto
                             self.message_input_box.text = ""
-                            self.message_input_box.txt_surface = self.get_font(20).render("", True, (0,0,0))
-                                
-                        #self.messages.append(self.message_input_box.text)  # mensaje 
-                        print(f" Mensajes: {self.messages}")
+                            self.message_input_box.txt_surface = self.get_font(20).render("", True, (0, 0, 0))
+
+                        print(f" Mensajes actuales: {self.network_manager.messagesServer}")
 
             # Manejo de inputs de texto dependiendo de la pantalla
             if self.current_screen == "join":  
@@ -1329,30 +1342,50 @@ o Descartar: Colocar una carta boca arriba en el centro de la mesa para finaliza
             elif self.current_screen == "lobby":
                 # Pasar el evento al input y, si es ENTER mientras está activo, enviar mensaje
                 self.message_input_box.handle_event(event)
-                if event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN and getattr(self.message_input_box, "active", False):
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN and getattr(self.message_input_box,
+                                                                                             "active", False):
                     msg = self.message_input_box.text.strip()
                     if msg:
+                        # 1. Crear el paquete con el formato correcto
+                        paquete_chat = {
+                            "type": "CHAT",
+                            "mensaje": msg,
+                            "playerName": self.network_manager.playerName
+                        }
+
+                        # 2. Lógica si eres el Servidor / Host
                         if getattr(self.network_manager, "server", False):
-                            formattedMsg = f"{self.network_manager.playerName}: {msg}"
                             with self.chatLock:
                                 self.network_manager.messagesServer.append(f"Tú: {msg}")
-                        try:
-                            self.network_manager.broadcast_message(formattedMsg)
-                        except Exception:
-                            pass
+                                if hasattr(self, 'messages'):
+                                    self.messages.append(f"Tú: {msg}")
+                            try:
+                                # Transmitimos el diccionario estructurado
+                                self.network_manager.broadcast_message(paquete_chat)
+                            except Exception as e:
+                                print(f"Error al transmitir chat host: {e}")
+
+                        # 3. Lógica si eres un Cliente (Player)
                         if getattr(self.network_manager, "player", False):
                             try:
-                                success = self.network_manager.sendData(("chat_messages", msg))
+                                # Enviamos el diccionario estructurado
+                                success = self.network_manager.sendData(paquete_chat)
                             except Exception:
                                 success = False
+
                             if success:
-                                formattedMsg = f"Tú: {msg}"
                                 with self.chatLock:
-                                    self.network_manager.messagesServer.append(formattedMsg)
+                                    self.network_manager.messagesServer.append(f"Tú: {msg}")
+                                    if hasattr(self, 'messages'):
+                                        self.messages.append(f"Tú: {msg}")
+
                         # limpiar input
                         self.message_input_box.text = ""
-                        self.message_input_box.txt_surface = self.get_font(20).render("", True, (0,0,0))
-                        print(f" Mensajes: {self.messages}")
+                        self.message_input_box.txt_surface = self.get_font(20).render("", True, (0, 0, 0))
+                        print(f" Mensajes: {self.network_manager.messagesServer}")
+        process_message = self.process_received_messages()
+        if process_message == "launch_ui2":
+            return process_message
         process_message = self.process_received_messages()
         if process_message == "launch_ui2":
             return process_message

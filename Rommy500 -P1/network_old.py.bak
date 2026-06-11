@@ -219,54 +219,53 @@ class NetworkManager:
                 if client_password == self.currentServer['password']:  #self.password:
                     
                     if len(self.connected_players) < self.currentServer['max_players']:
-                        if len(self.connected_players) < self.currentServer['max_players']:
-                            # Nuevo...
-                            # Verificando si es reconexion o jugador nuevo
-                            player_id = None
-                            found_index = -1    # Para guardar indice encontrado
-                            is_reconnection = False
-                            if len(self.connected_players) >= 2:
-                                for i, (existing_conn, existing_addr, existing_name, existing_id) in enumerate(self.connected_players[1:],start=2):
-                                    if existing_name == client_name:
-                                        player_id = existing_id
-                                        found_index = i     # Indice encontrado
-                                        is_reconnection = True
-                                        break
+                        # Nuevo...
+                        # Verificando si es reconexion o jugador nuevo
+                        player_id = None
+                        found_index = -1    # Para guardar indice encontrado
+                        is_reconnection = False
+                        if len(self.connected_players) >= 2:
+                            for i, (existing_conn, existing_addr, existing_name, existing_id) in enumerate(self.connected_players[1:],start=1):
+                                if existing_name == client_name:
+                                    player_id = existing_id
+                                    found_index = i     # Indice encontrado
+                                    is_reconnection = True
+                                    break
 
-                            if is_reconnection:
-                                # RECONEXION! Actulizar conexion
-                                print(f" Reconexion del jugador {client_name} (ID: {player_id})") 
-                                # Cerrar conexion anterior
-                                old_conn, old_addr, old_name, old_id = self.connected_players[found_index]
-                                try:
-                                    old_conn.close()
-                                except:
-                                    pass
+                        if is_reconnection:
+                            # RECONEXION! Actulizar conexion
+                            print(f" Reconexion del jugador {client_name} (ID: {player_id})") 
+                            # Cerrar conexion anterior
+                            old_conn, old_addr, old_name, old_id = self.connected_players[found_index]
+                            try:
+                                old_conn.close()
+                            except:
+                                pass
 
-                                # Actualiza con nueva conexion
-                                self.connected_players[found_index] = (conn, addr, client_name, player_id)
-                            else:
-                                # Nuevo jugador
-                                player_id = self.next_player_id
-                                self.next_player_id += 1
-                                self.connected_players.append((conn, addr, client_name, player_id))
-                                print(f" Nuevo jugador: {client_name} (ID: {player_id})")
+                            # Actualiza con nueva conexion
+                            self.connected_players[found_index] = (conn, addr, client_name, player_id)
+                        else:
+                            # Nuevo jugador
+                            player_id = self.next_player_id
+                            self.next_player_id += 1
+                            self.connected_players.append((conn, addr, client_name, player_id))
+                            print(f" Nuevo jugador: {client_name} (ID: {player_id})")
 
-                            # Acualizando la cantidad de jugadores
-                            self.currentServer['currentPlayers'] = len(self.connected_players)
+                        # Acualizando la cantidad de jugadores
+                        self.currentServer['currentPlayers'] = len(self.connected_players)
 
-                            # Enviar confirmacion con id al jugador
-                            response_data = {
-                                "status": "CONNECTED",
-                                "player_id": player_id,
-                                "player_name": client_name
-                            }
-                            ## conn.send(pickle.dumps(response_data))
-                            if not self.send_atomic(conn, response_data):
-                                print("Error enviando respuesta de conexión")
-                                conn.close()
-                                continue
-                            print(f" Enviando ID:{player_id} al jugador {client_name}")
+                        # Enviar confirmacion con id al jugador
+                        response_data = {
+                            "status": "CONNECTED",
+                            "player_id": player_id,
+                            "player_name": client_name
+                        }
+                        ## conn.send(pickle.dumps(response_data))
+                        if not self.send_atomic(conn, response_data):
+                            print("Error enviando respuesta de conexión")
+                            conn.close()
+                            continue
+                        print(f" Enviando ID:{player_id} al jugador {client_name}")
                     
                         # Hilo para manejar al jugador
                         threading.Thread(

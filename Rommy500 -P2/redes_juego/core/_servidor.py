@@ -154,4 +154,3 @@ class ServidorMixin:
         #4. Prepara los datos a enviar
         elementos_mesa = self.mesa_juego.elementos_mesa
         print("Elementos de la mesa a enviar a los clientes:", elementos_mesa)
-
