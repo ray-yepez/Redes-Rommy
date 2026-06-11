@@ -45,6 +45,7 @@ class ProcesadorMensajesMixin:
                     try:
                         mensaje = json.loads(linea)
 
+
                         if isinstance(mensaje, dict) and (
                             mensaje.get('type') == 'Ping' or 
                             mensaje.get('accion') == 'Ping' or 
@@ -77,6 +78,7 @@ class ProcesadorMensajesMixin:
                             # Los demás mensajes del juego (Cartas, unirse, etc.) pasan normal
                             self.cola_mensajes.append((id_jugador, mensaje, socket_cliente))
                             
+
                     except json.JSONDecodeError as e:
                         logger.error(f"JSON inválido de cliente {id_jugador}: {e}")
                         continue

@@ -65,8 +65,10 @@ class ClienteMixin:
         while self.conectado:
             time.sleep(5)
             if self.conectado:
+
                 
                 self.tiempo_ping_enviado = time.perf_counter()
+
                 self.enviar_accion('Ping')
 
     def _recibir_mensajes(self):
