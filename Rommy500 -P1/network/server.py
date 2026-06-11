@@ -9,6 +9,8 @@ from .config import NetworkConfig
 from .types import ConnectedPlayer
 from .exceptions import TimeoutException, ConnectionResetException
 from .constants import MessageType, ConnectionStatus
+from .health import HealthMonitor
+from .discovery import Discovery
 
 logger = logging.getLogger(__name__)
 
@@ -21,6 +23,8 @@ class GameServer:
         self.config = config or NetworkConfig()
         self.server_socket = None
         self.next_player_id = 2  # 1 es el HOST
+        self.health_monitor = HealthMonitor(self.state, self.transport, self.config)
+        self.discovery = Discovery(self.state, self.config)
     
     def start(self, game_name: str, player_name: str, max_players: int, room_name: str) -> bool:
         """Inicia el servidor TCP."""
@@ -51,7 +55,13 @@ class GameServer:
                 player_id=1,
                 is_host=True
             )
+
+
             self.state.add_connected_player(host_player)
+
+            self.discovery.start_broadcast()
+            self.health_monitor.start_health_check()
+            logger.info(f"Monitor de salud (Heartbeat) iniciado")
             
             # Hilo aceptador
             threading.Thread(target=self._accept_loop, daemon=True).start()
@@ -198,7 +208,13 @@ class GameServer:
         msg_type = data.get("type")
         
         if msg_type == MessageType.PONG.value:
+            # Capturamos el tiempo en que el cliente recibió el ping
+            ping_time = data.get("timestamp", 0)
+            # Calculamos la ida y vuelta (RTT)
+            latencia = (time.time() - ping_time) * 1000  
+
             self.state.update_last_activity(player.player_id, time.time())
+            logger.info(f"Latencia de {player.name}: {latencia:.2f} ms")
             logger.debug(f"PONG recibido de {player.name}")
             # No retransmitir PONG
             return
@@ -212,6 +228,9 @@ class GameServer:
                     self.state.messagesServer.pop(0)
             # Reenviar CHAT al resto
             data["playerName"] = player.name
+            # CAMBIO CLAVE: Lo añadimos a la cola de movimientos del Host
+            self.state.add_move(data, server=True)
+            # -------------------------------------------------
             for p in self.state.get_connected_players():
                 if not p.is_host and p.player_id != player.player_id:
                     try:

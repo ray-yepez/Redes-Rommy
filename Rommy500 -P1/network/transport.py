@@ -94,6 +94,7 @@ class Transport:
             try:
                 chunk = sock.recv(n - len(data))
                 if not chunk:
+                    logger.warning("Socket cerrado remotamente")
                     return None
                 data += chunk
                 retries = 0
