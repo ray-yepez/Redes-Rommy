@@ -81,10 +81,6 @@ class ClienteMixin:
             except Exception as e:
                 print(f"Error al recibir mensaje del servidor: {e}")
                 break
-                # Intentar reconexión automática
-                if self.id_jugador is not None and self.socket_cliente is not None:
-                    ip_servidor = self.socket_cliente.getpeername()[0]
-                    ##self.intentar_reconexion(ip_servidor)
 
     def _manejo_mensaje_red(self, mensaje):
         # Método completo para procesar todos los mensajes del servidor
