@@ -302,7 +302,24 @@ class NetworkManager:
             self.broadcast_message(msg_data)
         else:
             # Los clientes normales simplemente se lo envían al Host
-            self.sendData(msg_data)
+            return self.sendData(msg_data)
+
+                        #ANTIGUA LOGICA CLIENTE
+                        #      # 3. Lógica si eres un Cliente (Player)
+                        #     elif self.network_manager.player:
+                        #         # Enviamos el DICCIONARIO estructurado en lugar de la tupla anterior
+                        #         success = self.network_manager.sendData(paquete_chat)
+                        #         if success:
+                        #             with self.chatLock:
+                        #                 self.network_manager.messagesServer.append(f"Tú: {msg}")
+                        #                 if hasattr(self, 'messages'):
+                        #                     self.messages.append(f"Tú: {msg}")
+
+                        #     # Limpiar caja de texto
+                        #     self.message_input_box.text = ""
+                        #     self.message_input_box.txt_surface = self.get_font(20).render("", True, (0, 0, 0))
+
+                        # print(f" Mensajes actuales: {self.network_manager.messagesServer}")
 
     @property
     def needs_chat_notification(self) -> bool:
