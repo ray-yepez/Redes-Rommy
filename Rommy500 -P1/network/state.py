@@ -47,6 +47,10 @@ class NetworkState:
         self.server_info_to_reconnect = None
         self.receivedData = None
         
+        # Mensajes temporales para la UI (avisos de conexión/desconexión)
+        self.mensaje = "" #LOS ATRIBUTOS DEL MENSAJE SE INICIALIZAN AQUÍ PARA QUE LUEGO EL MÁNAGER LOS HEREDE
+        self.tiempoDelMensaje = 0
+        
         # Estado de jugadores en partida
         self.connected_players: List[ConnectedPlayer] = []
         self.last_activity = {}  # {player_id: timestamp_float}
@@ -103,8 +107,7 @@ class NetworkState:
             self.connected_players.append(player)
             logger.info(f"Jugador agregado a la partida: {player.name} (ID: {player.player_id})")
         
-        # Retornamos el nombre del jugador para que el servidor para que sepa a quien agregar
-        return player.name 
+
     
     def remove_connected_player(self, player_id: int):
         """Elimina a un jugador por su ID (ej: cuando se desconecta)."""

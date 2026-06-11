@@ -127,7 +127,15 @@ class GameServer:
                     "player_name": player_name
                 }
                 self.transport.send_atomic(conn, response)
-                
+
+                #######CAMBIOS PARA EL MENSAJE DE LA SALA################### 
+                #(si. También era necesario colocar esas variables aquí para que el mensaje se actualice al entrar un nuevo jugador, y no solo al host)
+                try:
+                    self.state.mensaje = f"{player_name} se ha unido a la sala"
+                    self.state.tiempoDelMensaje = time.time()
+                except Exception:
+                    pass
+
                 self._broadcast_players(new_player_name = player_name)  # Notificar a los demás que entró alguien nuevo
                 
                 # Hilo manejador para este jugador
@@ -181,24 +189,12 @@ class GameServer:
     
     def _broadcast_players(self, new_player_name=None):
         """Notifica a todos los clientes la nueva lista de jugadores y avisos de sala."""
-        # 1. Estructura original: Lista de jugadores serializada
         serializable_players = [(p.addr, p.name, p.player_id) for p in self.state.get_connected_players()]
-        message_players = {"type": "UPDATE_PLAYERS", "players": serializable_players}
-        
-        # 2. NUEVA LÓGICA: Preparamos el diccionario de la notificación si entró alguien nuevo
-        message_notification = None
-        if new_player_name:
-            message_notification = {
-                "type": "ROOM_NOTIFICATION",
-                "content": f"Jugador {new_player_name} se ha unido a la sala"
-            }
-
+        message = {"type": "UPDATE_PLAYERS", "players": serializable_players}
         for p in self.state.get_connected_players():
             if not p.is_host:
                 try:
-                    self.transport.send_atomic(p.conn, message_players)
-                    if message_notification:
-                        self.transport.send_atomic(p.conn, message_notification)
+                    self.transport.send_atomic(p.conn, message)
                 except Exception as e:
                     pass
     

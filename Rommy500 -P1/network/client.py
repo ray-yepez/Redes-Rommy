@@ -58,6 +58,10 @@ class GameClient:
                 # Iniciar el hilo receptor del cliente
                 threading.Thread(target=self._receive_loop, daemon=True).start()
                 
+                #######CAMBIOS PARA EL MENSAJE DE LA SALA################### 
+                self.state.mensaje = f"{self.state.player_name} se ha unido a la sala"
+                self.state.tiempoDelMensaje = time.time()
+
                 logger.info(f"Conectado como {self.state.player_name} (ID: {self.state.player_id})")
                 return True, "Conectado exitosamente"
             
@@ -103,10 +107,6 @@ class GameClient:
             return
             
         msg_type = data.get("type")
-        
-        if msg_type == "ROOM_NOTIFICATION":
-            self._handle_room_notification(data)
-            return
         
         if msg_type == MessageType.PING.value:
             logger.debug("PING recibido, devolviendo PONG automáticamente")
@@ -160,17 +160,7 @@ class GameClient:
             self.state.receivedData = data
             self.state.add_incoming_message(msg_type, data)
     
-    
-    ###NUEVO MÉTODO
-    def _handle_room_notification(self, data: dict):
-        """Maneja los avisos del sistema cuando un jugador se une a la sala"""
-        msg_type = data.get("type")
-        contenido = data.get("content", "Un jugador se ha unido a la sala.")
-        self.state.receivedData = data
-        self.state.add_incoming_message(msg_type, data)
-        print(f"[NOTIFICACIÓN DE SALA]: {contenido}")
-    ###FIN DEL NUEVO MÉTODO
-        
+
     def send(self, data: dict) -> bool:
         """Envía datos arbitrarios al Host."""
         if not self.state.player or not self.state.running:
