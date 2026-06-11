@@ -765,7 +765,7 @@ class Player:
         Los puntos van de la siguiente manera:
         -Cartas del 2 al 9: 5 puntos cada una
         -Cartas 10, J, Q, K: 10 puntos cada una
-        -Cartas de Ases: 15 puntos (antes tenía 20 puntos, por eso le sumaba 20pts en vez de 15pts, pero ahora lo cambié a 15pts)
+        -Cartas de Ases: 20 puntos
         -Cartas Joker: 25 puntos"""
         totalPoints = 0
         for card in self.playerHand:
@@ -774,7 +774,7 @@ class Player:
             elif card.value in ["K", "Q", "J", "10"]:
                 totalPoints += 10
             elif card.value == "A":
-                totalPoints += 15 #cambio a 15 puntos para los ases, antes era 20
+                totalPoints += 20
             else:
                 totalPoints += 5 ### cambiar a 5 no se te olvide
         self.playerPoints += totalPoints

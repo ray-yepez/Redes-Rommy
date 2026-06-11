@@ -25,7 +25,7 @@ class NetworkManager:
     
     # === Métodos públicos (INTERFAZ COMPATIBLE) ===
     
-    def start_server(self, nameHost, password, max_players, nameSala):
+    def start_server(self, nameHost, password, max_players, nameSala="Sala Local"):
         """Inicia servidor.
         
         nameHost: nombre del jugador host (se muestra en el juego)
@@ -274,3 +274,42 @@ class NetworkManager:
                 print(f"{str(clave).rjust(15)}: {valor}")
         else:
             return False
+    # === GESTOR DE CHAT Y NOTIFICACIONES ===
+
+    # === GESTOR DE CHAT Y NOTIFICACIONES ===
+
+    def send_chat_message(self, mensaje: str):
+        """Estructura el JSON del chat y lo envía a la red."""
+        msg_data = {
+            "type": "CHAT",
+            "playerName": self.state.playerName, 
+            "mensaje": mensaje,
+            "notificar": True # Flag de aviso para los receptores
+        }
+        
+        if self.state.is_host:
+            # CORRECCIÓN 1: Cambiamos el nombre del Host por "Tú" para su propia UI
+            msgFormat = f"Tú: {mensaje}"
+            
+            # CORRECCIÓN 2: Imprimir directamente en la terminal del Servidor
+            print(f"\n[CHAT - LOCAL (HOST)] Tú: {mensaje}")
+            
+            with self.state._lock_messages:
+                self.state.messagesServer.append(msgFormat)
+                if len(self.state.messagesServer) > 20:
+                    self.state.messagesServer.pop(0)
+            
+            # Y luego lo retransmite al resto de jugadores
+            self.broadcast_message(msg_data)
+        else:
+            # Los clientes normales simplemente se lo envían al Host
+            self.sendData(msg_data)
+
+    @property
+    def needs_chat_notification(self) -> bool:
+        """La UI puede consultar esta propiedad en cada frame para dibujar el ícono."""
+        return self.state.has_unread_chat
+        
+    def clear_chat_notification(self):
+        """Llama a este método justo en el evento donde el jugador abre el chat."""
+        self.state.has_unread_chat = False

@@ -97,17 +97,21 @@ last_taken_player = None
 #Cambio Boton Menu / Salir
 
 
-def show_menu_modal(screen, WIDTH, HEIGHT, ASSETS_PATH):
+
+
+def show_menu_modal(screen, WIDTH, HEIGHT, ASSETS_PATH, ctrl_volumen):
     import pygame
     import os
+    import sys
     clock = pygame.time.Clock()
     img_reanudar = pygame.image.load(os.path.join(ASSETS_PATH, "reanudar.png")).convert_alpha()
-    img_ajustes = pygame.image.load(os.path.join(ASSETS_PATH, "ajustes.png")).convert_alpha()
+    # Eliminamos la imagen de "ajustes" para darle espacio al control de volumen real
     img_salir = pygame.image.load(os.path.join(ASSETS_PATH, "salir.png")).convert_alpha()
+    
     btn_w, btn_h = 220, 70
     img_reanudar = pygame.transform.smoothscale(img_reanudar, (btn_w, btn_h))
-    img_ajustes = pygame.transform.smoothscale(img_ajustes, (btn_w, btn_h))
     img_salir = pygame.transform.smoothscale(img_salir, (btn_w, btn_h))
+    
     try:
         background_snapshot = screen.copy()
     except Exception:
@@ -117,20 +121,35 @@ def show_menu_modal(screen, WIDTH, HEIGHT, ASSETS_PATH):
     overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
     overlay.fill((0, 0, 0, 140))
 
-    w, h = 330, 300
+    w, h = 330, 360 
     x = (WIDTH - w) // 2
     y = (HEIGHT - h) // 2
     modal_rect = pygame.Rect(x, y, w, h)
     padding = 16
 
     btn_w, btn_h = 220, 44
-    espacio_vertical = 35
-    inicio_y = y + 40
-    btn_resume = pygame.Rect(x + (w - btn_w) // 2, inicio_y, btn_w, btn_h)
-    btn_config = pygame.Rect(x + (w - btn_w) // 2, inicio_y + btn_h + espacio_vertical, btn_w, btn_h)
-    btn_exit   = pygame.Rect(x + (w - btn_w) // 2, inicio_y + 2 * (btn_h + espacio_vertical), btn_w, btn_h)
+    
+    # Nuevas posiciones centradas
+    btn_resume = pygame.Rect(x + (w - btn_w) // 2, y + 60, btn_w, btn_h)
+    
+    # --- ZONA DEL CONTROL DE VOLUMEN ---
+    vol_y = y + 180
+    # El ancho total de los cuadritos es aprox 145px (6 botones de 20px + 5 espacios de 5px)
+    vol_x = x + (w - 145) // 2 
+    
+    # Reubicamos dinámicamente los rectángulos del control de volumen para que aparezcan en el menú
+    ctrl_volumen.rects = []
+    for i in range(len(ctrl_volumen.niveles)):
+        pos_x = vol_x + (i * (ctrl_volumen.ancho_btn + ctrl_volumen.espacio))
+        rect = pygame.Rect(pos_x, vol_y, ctrl_volumen.ancho_btn, ctrl_volumen.alto_btn)
+        ctrl_volumen.rects.append(rect)
+    # -----------------------------------
+
+    btn_exit = pygame.Rect(x + (w - btn_w) // 2, y + 225, btn_w, btn_h)
+    
     font_path = os.path.join(ASSETS_PATH, "PressStart2P-Regular.ttf")
     title_font = pygame.font.Font(font_path, 16)
+    vol_font = pygame.font.Font(font_path, 12)
 
     while True:
         for ev in pygame.event.get():
@@ -142,10 +161,9 @@ def show_menu_modal(screen, WIDTH, HEIGHT, ASSETS_PATH):
                 mx, my = ev.pos
                 if btn_resume.collidepoint(mx, my):
                     return "resume"
-                if btn_config.collidepoint(mx, my):
-                    return "config"
                 if btn_exit.collidepoint(mx, my):
-                    pygame.quit()
+                    # Forzamos cierre limpio si le da a salir desde el modal
+                    return "exit"
 
         if pygame.display.get_init():
             screen.blit(background_snapshot, (0, 0))
@@ -154,16 +172,25 @@ def show_menu_modal(screen, WIDTH, HEIGHT, ASSETS_PATH):
             pygame.draw.rect(screen, (40, 40, 40), modal_rect, border_radius=12)
             pygame.draw.rect(screen, (150, 150, 150), modal_rect, 2, border_radius=12)
 
+            # Títulos
             title = title_font.render("Menú de Pausa", True, (230, 230, 230))
             screen.blit(title, (x + padding + 50, y + padding))
 
+            vol_text = vol_font.render("Volumen de Música", True, (200, 200, 200))
+            screen.blit(vol_text, (x + (w - vol_text.get_width()) // 2, vol_y - 30))
+
+            # Botones
             screen.blit(img_reanudar, btn_resume.topleft)
-            screen.blit(img_ajustes, btn_config.topleft)
             screen.blit(img_salir, btn_exit.topleft)
+            
+            # Dibujamos y procesamos los clicks de volumen SOLAMENTE cuando el menú está abierto
+            ctrl_volumen.actualizar_y_dibujar()
+            
             pygame.display.flip()
             clock.tick(60)
         else:
             return "exit"
+        
 #Cambio Boton Menu / Salir
 
 def register_taken_card(player, card):
@@ -618,7 +645,7 @@ def draw_player_hand(player, rect, cuadros_interactivos=None, cartas_ref=None, o
             solapamiento = int(base_sep - (base_sep - min_sep) * (n - 6) / 6)
         total_width = card_width + (n - 1) * solapamiento
         if total_width > rect.width:
-            solapamiento = max(4, (rect.width - card_width) // (n - 1))
+            solapamiento = max(8, (rect.width - card_width) // (n - 1))
         start_x = rect.x + (rect.width - (card_width + (n - 1) * solapamiento)) // 2
     else:
         solapamiento = 0
@@ -1027,13 +1054,22 @@ def main(manager_de_red): # <-- Acepta el manager de red
     carta_sound_path = os.path.join(ASSETS_PATH, "sonido", "carta.wav")
     carta_sound = pygame.mixer.Sound(carta_sound_path)
 
-    # Cargar sonido de bajarse
-    bajarse_sound_path = os.path.join(ASSETS_PATH, "sonido", "bajarse.wav")
-    bajarse_sound = pygame.mixer.Sound(bajarse_sound_path)
+    # Cargar sonido para el botón ordenar 
+    try:
+        ordenar_sound_path = os.path.join(ASSETS_PATH, "sonido", "ordenar.mp3") 
+        ordenar_sound = pygame.mixer.Sound(ordenar_sound_path)
+    except Exception as e:
+        print("Aviso: No se encontró el sonido de ordenar:", e)
+        ordenar_sound = None
 
-    #contJugador = 0
-    #contHost = 0
-
+#  Cargar sonido para el botón extender
+    try:
+        extender_sound_path = os.path.join(ASSETS_PATH, "sonido", "extender.mp3") 
+        extender_sound = pygame.mixer.Sound(extender_sound_path)
+    except Exception as e:
+        print("Aviso: No se encontró el sonido de extender:", e)
+        extender_sound = None
+        
     # Variables para manejar el ciclo de compra. 
     noBuy = True                # Indica que no hay compras activas.
     bought = False              # Indica que ya hubo ciclo de compras en el turno actual.
@@ -1046,7 +1082,7 @@ def main(manager_de_red): # <-- Acepta el manager de red
     time_confirm = None         # Variable para manejar el tiempo de espera por mensajes tardios en ciclo de compra.
     list_confirm_ids = []       # Lista para almacenar jugadores que ya tuvieron su turno de compra.
 
-    ctrl_volumen = ControlVolumen(x=1025, y=80)
+    ctrl_volumen = ControlVolumen(x=500, y=500)
 
     # ── Botón de ordenamiento de mano ─────────────────────────────────────────
     # Posición: esquina inferior derecha, por encima de la zona de cartas.
@@ -1681,10 +1717,26 @@ def main(manager_de_red): # <-- Acepta el manager de red
                     # Reasignar índices visuales
                     for idx_v, carta_v in enumerate(visual_hand):
                         carta_v.id_visual = idx_v
+                    # Notificacion
+                    if 'ordenar_sound' in locals() and ordenar_sound:
+                        try:
+                            ordenar_sound.play()
+                        except:
+                            pass
                     etiqueta_modo = "Sets (Tríos)" if modo_orden == "Sets" else "Runs (Escaleras)"
-                    mensaje_temporal = f"Mano ordenada: {etiqueta_modo}"
+                    mensaje_temporal = f"Las cartas fueron ordenadas"
                     mensaje_tiempo   = time.time()
                     continue   # no procesar más clics en este frame
+                    
+                    # 2. Configurar la notificación visual en pantalla
+                    mensaje_temporal = "Las cartas en mano fueron ordenadas"
+                    mensaje_tiempo   = time.time()
+                    
+                    # -----------------------------------------------
+
+                    continue   # no procesar más clics en este frame
+                # ─────────────────────────────────────────────────────────────
+                # ─────────────────────────────────────────────────────────────
                 # ─────────────────────────────────────────────────────────────
 
                 # 1. Intentar levantar de las zonas de juego (Trios/Seguidillas)
@@ -1808,34 +1860,27 @@ def main(manager_de_red): # <-- Acepta el manager de red
 
 
 
-                #Cambio Menu
+               #Cambio Menu
                 elif nombre == "Menú":
-                    resultado = show_menu_modal(screen, WIDTH, HEIGHT, ASSETS_PATH)
+                    # Le pasamos ctrl_volumen a la función
+                    resultado = show_menu_modal(screen, WIDTH, HEIGHT, ASSETS_PATH, ctrl_volumen)
                     if resultado == "resume":
-                        pass  # simplemente se cierra el modal
-                    elif resultado == "config":
-                        print("Abrir configuración (modal futuro)")
+                        pass  # simplemente se cierra el modal y sigue el juego
                     elif resultado == "exit":
                         running = False
                         print(f" Jugador antes de salir {jugador_local.playerName}")
-                        #.exit_game(jugador_local.playerId, jugador_local.playerName)
+                        
                         msgSalir = {
                             "type": "SALIR",
                             "playerId": jugador_local.playerId,
                             "playerName": jugador_local.playerName
                             }
-                        #if network_manager.is_host:
-                        #    network_manager.broadcast_message(msgSalir)
-                        #el
+                        
                         if network_manager.player:
                             network_manager.sendData(msgSalir)
                         time.sleep(2)
-                        #pygame.quit()
                         return
-                #Cambio Menu
-
-
-
+                
                 elif nombre:
                     if nombre == "Tomar carta":
 
@@ -2438,7 +2483,7 @@ def main(manager_de_red): # <-- Acepta el manager de red
                                 zona_cartas[numero] = []
                                 continue
                             elif cartas_descartadas == '002':
-                                mensaje_temporal = "no puedes descartar el joker"
+                                mensaje_temporal = "Para poder descartar un joker, debes descartar también otra carta normal"
                                 mensaje_tiempo = time.time()
                                 for c in selected_cards:
                                         if c in visual_hand:
@@ -2496,27 +2541,6 @@ def main(manager_de_red): # <-- Acepta el manager de red
                                 zona_cartas[numero] = []
                                 continue
                             elif (jugador_local.isHand and jugador_local.canDiscard) or not can_discard(jugador_local, cartas_descartadas):
-                                
-                                # --- FIX CARTAS FANTASMA ---
-                                # Si el jugador descarta SIN haberse bajado, las cartas que quedaron
-                                # en las zonas de Trio/Seguidilla deben volver visibles en la mano.
-                                # Las cartas siguen en playerHand (nunca se quitaron), solo estaban
-                                # ocultas en visual_hand mediante cartas_ocultas. Al limpiar las zonas
-                                # y quitar las entradas de cartas_ocultas, vuelven a ser visibles.
-                                if not jugador_local.downHand:
-                                    idx_desc_local = 3 if (roundThree or roundFour) else 2
-                                    for iz in range(len(zona_cartas)):
-                                        if iz != idx_desc_local:  # No tocar la zona de descarte
-                                            for carta_zona in zona_cartas[iz]:
-                                                # Quitar de ocultas para que vuelva a mostrarse
-                                                if carta_zona in visual_hand:
-                                                    try:
-                                                        idx_v = visual_hand.index(carta_zona)
-                                                        cartas_ocultas.discard(idx_v)
-                                                    except ValueError:
-                                                        pass
-                                            zona_cartas[iz] = []
-                                # --- FIN FIX ---
                                 
                                 cartas_en_zonas_visuales = []
                                 for zona in zona_cartas:
@@ -2975,7 +2999,7 @@ def main(manager_de_red): # <-- Acepta el manager de red
                                                             intentado = True
                                                             break
 
-                                    # --- 2. PRIORIDAD 1: EXPANDIR LA SECUENCIA (Poner a los lados) ---
+                            # --- 2. PRIORIDAD 1: EXPANDIR LA SECUENCIA (Poner a los lados) ---
                                     # Esto evita que el Joker sea sustituido si la carta puede ir al principio o al final.
                                     temp_inicio = [carta_obj] + list(cartas_en_mesa_frescas)
                                     temp_final = list(cartas_en_mesa_frescas) + [carta_obj]
@@ -2992,20 +3016,26 @@ def main(manager_de_red): # <-- Acepta el manager de red
                                     if valido_inicio:
                                         ok = safe_insert_card(jugador_local, target_player, play_index_real, carta_obj, "start", tipo)
                                         if ok: 
-                                            mensaje_temporal = "Insertada exitosamente"
+                                            mensaje_temporal = "La Jugada fue extendida"  # <--- TEXTO CAMBIADO
                                             intentado = True
                                     elif valido_final:
                                         ok = safe_insert_card(jugador_local, target_player, play_index_real, carta_obj, "end", tipo)
                                         if ok: 
-                                            mensaje_temporal = "Insertada exitosamente"
+                                            mensaje_temporal = "La Jugada fue extendida"  # <--- TEXTO CAMBIADO
                                             intentado = True
 
-            
-
-                                    # --- 4. FINALIZACIÓN Y RED ---
+                            # --- 4. FINALIZACIÓN Y RED ---
                                     if intentado:
                                         mensaje_tiempo = time.time()
                                         insertado_en_jugada = True
+                                        
+                                        # ---> NUEVO: REPRODUCIR SONIDO AQUÍ <---
+                                        if 'extender_sound' in locals() and extender_sound:
+                                            try:
+                                                extender_sound.play()
+                                            except:
+                                                pass
+                                        # ---------------------------------------
 
                                         last_inserted_card_data = {
                                             'target_player': target_player,
@@ -5068,8 +5098,6 @@ def main(manager_de_red): # <-- Acepta el manager de red
                 screen.blit(surf, rect)
         elif mensaje_temporal and time.time() - mensaje_tiempo >= 5:
             mensaje_temporal = ""
-        
-        ctrl_volumen.actualizar_y_dibujar()
         
         pygame.display.flip()
         pygame.time.Clock().tick(60) # Esto mantiene el juego estable a 60 FPS
