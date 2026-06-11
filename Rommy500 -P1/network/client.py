@@ -72,44 +72,30 @@ class GameClient:
             logger.error(f"Error conectando al Host: {e}")
             return False, str(e)
     
-    # En client.py, en _receive_loop, modificar:
     def _receive_loop(self):
-    
-     while self.state.running and self.state.player:
-        try:
-            self.state.player.settimeout(self.config.SOCKET_TIMEOUT)
-            data = self.transport.recv_atomic(self.state.player)
-            
-            if data is None:
-                logger.info("El servidor cerró la conexión")
-                # AGREGAR ESTO: Notificar desconexión del Host
-                self.state.add_incoming_message("host_disconnected", 
-                    {"reason": "El servidor cerró la conexión"})
+        """Loop de recepción infinita (CORRE EN HILO)."""
+        while self.state.running and self.state.player:
+            try:
+                self.state.player.settimeout(self.config.SOCKET_TIMEOUT)
+                data = self.transport.recv_atomic(self.state.player)
+                
+                if data is None:
+                    logger.info("El servidor cerró la conexión")
+                    break
+                
+                self._process_message(data)
+                
+            except socket.timeout:
+                continue
+            except ConnectionResetError:
+                logger.warning("Conexión reseteada por el servidor")
                 break
-            
-            self._process_message(data)
-            
-        except socket.timeout:
-            continue
-        except ConnectionResetError:
-            logger.warning("Conexión reseteada por el servidor")
-            # AGREGAR ESTO: Notificar desconexión abrupta del Host
-            self.state.add_incoming_message("host_disconnected", 
-                {"reason": "Conexión reseteada por el servidor"})
-            break
-        except Exception as e:
-            logger.error(f"Error recibiendo paquete: {e}")
-            continue
-    
-    # Limpiar estado
-     self.state.is_connected = False
-     self.state.running = False
-     if self.state.player:
-        try:
-            self.state.player.close()
-        except:
-            pass
-     logger.info("Hilo de recepción del cliente finalizado")
+            except Exception as e:
+                logger.error(f"Error recibiendo paquete: {e}")
+                continue
+        
+        self.state.is_connected = False
+        logger.info("Hilo de recepción del cliente finalizado")
     
     def _process_message(self, data: dict):
         """Procesa y rutéa el mensaje recibido del Host."""
@@ -117,19 +103,6 @@ class GameClient:
             return
             
         msg_type = data.get("type")
-         
-        if msg_type == "host_disconnected":
-          logger.warning(f"Host desconectado: {data.get('reason', 'Sin razón')}")
-          self.state.is_connected = False
-          self.state.running = False
-          if self.state.player:
-             try:
-                self.state.player.close()
-             except:
-                pass
-      
-          self.state.add_incoming_message("host_disconnected", data)
-          return
         
         if msg_type == MessageType.PING.value:
             logger.debug("PING recibido, devolviendo PONG automáticamente")
