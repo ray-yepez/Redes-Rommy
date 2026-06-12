@@ -274,3 +274,14 @@ class NetworkManager:
                 print(f"{str(clave).rjust(15)}: {valor}")
         else:
             return False
+
+    #Aquí obtenemos el mensaje y el tiempo del mensaje para que ui.py pueda leerlos directamente desde el manager, 
+    #sin necesidad de acceder al state (porque el state es más interno y no se puede acceder directamente desde ui.py)
+    #saludeishon :3
+    @property
+    def mensaje(self):
+        return getattr(self.state, 'mensaje', '')
+
+    @property
+    def tiempoDelMensaje(self):
+        return getattr(self.state, 'tiempoDelMensaje', 0)

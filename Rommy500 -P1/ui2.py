@@ -938,7 +938,7 @@ def main(manager_de_red): # <-- Acepta el manager de red
     # Obtener los datos compartidos
     # jugadores n -> conn, addr, name, id
     jugadores = network_manager.connected_players
-    
+    print(f"Juego iniciado en UI2 con los jugadores reales: {jugadores}")
     from Card import Card
     from Player import Player
 

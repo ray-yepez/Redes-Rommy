@@ -137,8 +137,17 @@ class GameServer:
                     "player_name": player_name
                 }
                 self.transport.send_atomic(conn, response)
+
+                #######CAMBIOS PARA EL MENSAJE DE LA SALA################### 
+                #(si. También era necesario colocar esas variables aquí para que el mensaje se actualice al entrar un nuevo jugador, y no solo al host)
+                try:
+                    self.state.mensaje = f"{player_name} se ha unido a la sala"
+                    self.state.tiempoDelMensaje = time.time()
+                except Exception:
+                    pass
+
+                self._broadcast_players()  # Notificar a los demás que entró alguien nuevo
                 
-                self._broadcast_players()
                 
                 # Hilo manejador para este jugador
                 threading.Thread(

@@ -58,6 +58,10 @@ class GameClient:
                 # Iniciar el hilo receptor del cliente
                 threading.Thread(target=self._receive_loop, daemon=True).start()
                 
+                #######CAMBIOS PARA EL MENSAJE DE LA SALA################### 
+                self.state.mensaje = f"{self.state.player_name} se ha unido a la sala"
+                self.state.tiempoDelMensaje = time.time()
+
                 logger.info(f"Conectado como {self.state.player_name} (ID: {self.state.player_id})")
                 return True, "Conectado exitosamente"
             
@@ -110,6 +114,7 @@ class GameClient:
                 "type": MessageType.PONG.value,
                 "timestamp": data.get("timestamp")
             }
+
             if not self.transport.send_atomic(self.state.player, pong):
                 logger.warning("Fallo al enviar PONG de respuesta al PING del Host.")
             return
@@ -124,8 +129,9 @@ class GameClient:
                 self.state.messagesServer.append(msgFormat)
                 if len(self.state.messagesServer) > 20:
                     self.state.messagesServer.pop(0)
-                    # CAMBIO CLAVE: Lo añadimos a la cola de movimientos para que la UI lo detecte
+          # CAMBIO CLAVE: Lo añadimos a la cola de movimientos para que la UI lo detecte
             self.state.add_move(data, server=False)
+
         elif msg_type in [
             MessageType.ELECTION_CARDS.value,
             MessageType.SELECTION_UPDATE.value,
