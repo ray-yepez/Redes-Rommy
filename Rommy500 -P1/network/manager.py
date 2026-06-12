@@ -300,9 +300,16 @@ class NetworkManager:
             
             # Y luego lo retransmite al resto de jugadores
             self.broadcast_message(msg_data)
+            return True
         else:
-            # Los clientes normales simplemente se lo envían al Host
-            return self.sendData(msg_data)
+            success = self.sendData(msg_data)
+            if success:
+                formattedMsg = f"Tú: {mensaje}"
+                with self.state._lock_messages:
+                    self.state.messagesServer.append(formattedMsg)
+                    if len(self.state.messagesServer) > 20:
+                        self.state.messagesServer.pop(0)
+            return success
 
                         #ANTIGUA LOGICA CLIENTE
                         #      # 3. Lógica si eres un Cliente (Player)

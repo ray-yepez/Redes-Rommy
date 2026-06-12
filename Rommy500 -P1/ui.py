@@ -1318,19 +1318,11 @@ o Descartar: Colocar una carta boca arriba en el centro de la mesa para finaliza
                         elif getattr(self, "show_chat", False) and self.SEND_MS_BUTTON.checkForInput(event.pos):  
                             msg = self.message_input_box.text.strip()
                             if msg:
-                                self.network_manager.send_chat_message(msg)
-                                if hasattr(self, 'messages'):
+                                success = self.network_manager.send_chat_message(msg)
+                                if success and hasattr(self, 'messages'):
                                     self.messages = self.network_manager.messagesServer
                                 self.message_input_box.text = ""
                                 self.message_input_box.txt_surface = self.get_font(20).render("", True, (0,0,0))
-                                if self.network_manager.player:
-                                    success = self.network_manager.sendData(("chat_messages",msg))
-                                    if success:
-                                        formattedMsg = f"Tú: {msg}"
-                                        with self.chatLock:
-                                            self.network_manager.messagesServer.append(formattedMsg)
-                                            if hasattr(self, 'messages'):
-                                                self.messages = self.network_manager.messagesServer
                             print(f" Mensajes actuales: {self.network_manager.messagesServer}")
 
            # Manejo de inputs de texto dependiendo de la pantalla
@@ -1351,25 +1343,10 @@ o Descartar: Colocar una carta boca arriba en el centro de la mesa para finaliza
             if event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN and getattr(self.message_input_box, "active", False) and getattr(self, "show_chat", False):
                     msg = self.message_input_box.text.strip()
                     if msg != "":
-                        self.network_manager.send_chat_message(msg)
-                        if hasattr(self, 'messages'):
+                        success = self.network_manager.send_chat_message(msg)
+                        if success and hasattr(self, 'messages'):
                             self.messages = self.network_manager.messagesServer
                         self.message_input_box.text = ""
-                        self.message_input_box.txt_surface = self.get_font(20).render("", True, (0,0,0))
-                        
-                        if getattr(self.network_manager, "player", False):
-                            try:
-                                # Enviamos el diccionario estructurado
-                                success = self.network_manager.sendData(paquete_chat)
-                            except Exception as e:
-                                print(e)
-                                success = False
-
-                            if success:
-                                with self.chatLock:
-                                    formattedMsg = f"Tú: {msg}"
-                                    self.network_manager.messagesServer.append(formattedMsg)
-                        # limpiar input box
                         self.message_input_box.txt_surface = self.get_font(20).render("", True, (0,0,0))
                         print(f" Mensajes: {self.messages}")
         process_message = self.process_received_messages()
