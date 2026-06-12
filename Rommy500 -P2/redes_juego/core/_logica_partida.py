@@ -137,47 +137,18 @@ class LogicaPartidaMixin:
         self.mano_por_usuario(self.lista_jugadores_objetos_reordenados, manos, mazo)
 
     def mano_por_usuario(self, jugadores, manos, mazo):
-<<<<<<< HEAD
-=======
-        # ── CORRECCIÓN 1: usar índice directo en lugar de manos.pop()
-        # manos.pop() sacaba del final → las manos quedaban invertidas.
-        # Ahora usamos manos[idx] para que jugadores[0] reciba manos[0], etc.
-        #
-        # ── CORRECCIÓN 2: eliminar cartas hardcodeadas de prueba
-        # El bloque anterior sobreescribía self.manos con datos fijos
-        # (15 cartas al jugador 1, 9 al jugador 2), ignorando la repartición real.
-        # Ahora se usa exclusivamente el resultado de repartir_cartas().
->>>>>>> main
         cantidad_cartas_usuario = []
         manos_por_jugador = {}
 
-        for idx, jugador in enumerate(jugadores):
+        for jugador in jugadores:
             if self.clientes[jugador.nro_jugador - 1]["status"] != "activo":
                 manos_por_jugador[jugador.nro_jugador - 1] = []
             else:
-<<<<<<< HEAD
                 manos_por_jugador[jugador.nro_jugador - 1] = manos.pop()
             mano_id = {"cantidad_mano":len(manos_por_jugador[jugador.nro_jugador - 1]),"id":jugador.nro_jugador,"nombre":jugador.nombre_jugador}
             cantidad_cartas_usuario.append(mano_id)
             print(f'\nCartas del jugador {jugador.nro_jugador} - {jugador.nombre_jugador}: {[str(c) for c in  manos_por_jugador[jugador.nro_jugador - 1]]}')
             
-=======
-                # CORRECCIÓN 1: índice directo, no pop()
-                manos_por_jugador[jugador.nro_jugador - 1] = manos[idx]
-            mano_id = {
-                "cantidad_mano": len(manos_por_jugador[jugador.nro_jugador - 1]),
-                "id": jugador.nro_jugador,
-                "nombre": jugador.nombre_jugador
-            }
-            cantidad_cartas_usuario.append(mano_id)
-            print(
-                f'\nCartas del jugador {jugador.nro_jugador} - '
-                f'{jugador.nombre_jugador}: '
-                f'{[str(c) for c in manos_por_jugador[jugador.nro_jugador - 1]]}'
-            )
-
-        # CORRECCIÓN 2: asignar las manos reales (sin hardcodear ni sobreescribir)
->>>>>>> main
         self.manos = manos_por_jugador
         self.manos = []
         carta1 = [{"numero":"Joker","figura":"Especial"},{"numero":"10","figura":"Pica"},{"numero":"9","figura":"Pica"},{"numero":"8","figura":"Pica"},{"numero":"7","figura":"Pica"},{"numero":"K","figura":"Pica"},{"numero":"Joker","figura":"Especial"},{"numero":"J","figura":"Pica"},{"numero":3,"figura":"Pica"},{"numero":4,"figura":"Pica"},{"numero":5,"figura":"Pica"},{"numero":6,"figura":"Trebol"},{"numero":6,"figura":"Pica"},{"numero":6,"figura":"Corazon"},{"numero":6,"figura":"Diamante"}]

@@ -1,4 +1,8 @@
+import pygame
+from logica_interfaz.archivo_de_importaciones import importar_desde_carpeta
+
 """Mixin para el menú de instrucciones"""
+
 
 from recursos_graficos import constantes
 from recursos_graficos.menu import Menu
@@ -26,10 +30,27 @@ class MenuInstruccionesMixin:
             alto=constantes.ALTO_MENU_INSTRUCCIONES,
             x=x_menu,
             y=y_menu,
-            fondo_color=constantes.ELEMENTO_FONDO_PRINCIPAL,
-            borde_color=constantes.ELEMENTO_BORDE_PRINCIPAL,
+            fondo_color=None,
+            borde_color=None,
             grosor_borde=constantes.BORDE_PRONUNCIADO,
             redondeo=constantes.REDONDEO_PRONUNCIADO
+        )
+
+        ruta_fondo = importar_desde_carpeta(
+            nombre_archivo="Imagenes/fondos/panel_como_jugar.png",
+            nombre_carpeta="assets"
+        )
+
+        fondo_instrucciones = pygame.image.load(ruta_fondo).convert_alpha()
+
+        fondo_instrucciones = pygame.transform.smoothscale(
+            fondo_instrucciones,
+            (constantes.ANCHO_MENU_INSTRUCCIONES, constantes.ALTO_MENU_INSTRUCCIONES)
+        )
+
+        menu_instrucciones.agregar_imagen(
+            fondo_instrucciones,
+            (0, 0),1
         )
         
         self.crear_elementos_instrucciones(menu_instrucciones)
@@ -47,17 +68,17 @@ class MenuInstruccionesMixin:
         # Texto ocupa casi todo el ancho y 70% de la altura
         menu_instrucciones.crear_elemento(
             Clase=Elemento_texto,
-            x=constantes.BORDE_PRONUNCIADO,
-            y=constantes.ALTO_MENU_INSTRUCCIONES * 0.10,
+            x=constantes.BORDE_PRONUNCIADO + 110,
+            y=constantes.ALTO_MENU_INSTRUCCIONES * 0.15,
             un_juego=self,
             texto=constantes.TEXTO_DE_INSTRUCCIONES,
             ancho=constantes.ANCHO_MENU_INSTRUCCIONES - (constantes.BORDE_PRONUNCIADO * 2),
             alto=constantes.ALTO_MENU_INSTRUCCIONES * 0.70,
             tamaño_fuente=constantes.F_MEDIANA,
             fuente=constantes.FUENTE_ESTANDAR,
-            color=constantes.ELEMENTO_FONDO_PRINCIPAL,
+            color=None,
             radio_borde=constantes.REDONDEO_INTERMEDIO,
-            color_texto=constantes.COLOR_TEXTO_PRINCIPAL,
+            color_texto=(187, 165, 113),
             color_borde=constantes.BLANCO,
             grosor_borde=constantes.BORDE_LIGERO,
             alineacion_vertical="arriba",
@@ -70,14 +91,14 @@ class MenuInstruccionesMixin:
         Args:
             menu_instrucciones: Instancia del menú donde agregar los controles
         """
-        x = (constantes.ANCHO_MENU_INSTRUCCIONES - constantes.ELEMENTO_PEQUENO_ANCHO) / 2
-        y = constantes.ALTO_MENU_INSTRUCCIONES - constantes.ELEMENTO_PEQUENO_ALTO * 1.2
+        x = (constantes.ANCHO_MENU_INSTRUCCIONES - constantes.ELEMENTO_PEQUENO_ANCHO) / 1.83
+        y = constantes.ALTO_MENU_INSTRUCCIONES - constantes.ELEMENTO_PEQUENO_ALTO * 1.8
         ancho = constantes.ELEMENTO_PEQUENO_ANCHO
         alto = constantes.ELEMENTO_PEQUENO_ALTO
         accion = lambda: controladores.Mostrar_seccion(self, self.menu_inicio,solo_ocultar=solo_ocultar)
         
         
-        menu_instrucciones.crear_elemento(
+        boton_volver = menu_instrucciones.crear_elemento(
             x=x,
             y=y,
             funcion=True,
@@ -85,6 +106,53 @@ class MenuInstruccionesMixin:
             alto=alto,
             texto="VOLVER",
             accion=accion,
-            tp_color="p",
-            tp_borde="i"
+            tp_color="s",
+            tp_borde="n"
         )
+
+        try:
+            ruta_img = importar_desde_carpeta(
+                nombre_archivo="Imagenes/botones/boton_volver.png",
+                nombre_carpeta="assets"
+            )
+
+            img = pygame.image.load(ruta_img).convert_alpha()
+
+            escala = 0.6  # ajusta el tamaño
+            nuevo_ancho = int(img.get_width() * escala)
+            nuevo_alto = int(img.get_height() * escala)
+
+            img = pygame.transform.smoothscale(img, (nuevo_ancho, nuevo_alto))
+
+            x_absoluto = menu_instrucciones.x + x
+            y_absoluto = menu_instrucciones.y + y
+
+            boton_volver.x = int(x_absoluto)
+            boton_volver.y = int(y_absoluto)
+            boton_volver.ancho = nuevo_ancho
+            boton_volver.alto = nuevo_alto
+
+            boton_volver.rect = pygame.Rect(
+                int(x_absoluto),
+                int(y_absoluto),
+                nuevo_ancho,
+                nuevo_alto
+            )
+
+            boton_volver.superficie_texto = img
+            boton_volver.rect_texto = img.get_rect(center=boton_volver.rect.center)
+
+            # quitar fondo blanco y borde viejo
+            boton_volver.color_actual = None
+            boton_volver.color = None
+            boton_volver.color_hover = None
+            boton_volver.color_clicado = None
+
+            boton_volver.grosor_borde = 0
+            boton_volver.color_borde = None
+            boton_volver.color_borde_actual = None
+            boton_volver.color_borde_hover = None
+            boton_volver.color_borde_clicado = None
+
+        except Exception as e:
+            print(f"Error cargando imagen del botón VOLVER: {e}")

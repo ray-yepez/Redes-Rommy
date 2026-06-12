@@ -25,6 +25,7 @@ FUENTE_GAME_OVER = "assets/fuentes/game_over.ttf"
 FUENTE_GOMAWO = "assets/fuentes/Gomawo.ttf"
 FUENTE_PRESS_START = "assets/fuentes/PressStart2P-Regular.ttf"
 FUENTE_PIXEL_RAND = "assets/fuentes/Pixel-Rand.otf"
+FUENTE_GRAND_CASINO = "assets/fuentes/Grand_Casino.otf"
 FUENTE_ARIAL = 'arial'
 FUENTE_SANS_SERIF = 'sansserif'
 #Fin de la fuentes
@@ -32,6 +33,7 @@ FUENTE_SANS_SERIF = 'sansserif'
 #Fuentes mas usadas
 FUENTE_LLAMATIVA = FUENTE_ARCO
 FUENTE_ESTANDAR = FUENTE_ACUIM_BOLD
+FUENTE_TITULO = FUENTE_GRAND_CASINO
 #Fin de fuentes mas usadas
 
 
@@ -58,10 +60,10 @@ FONDO_VENTANA = VERDE
 
 
 #Bordes de elementos
-SIN_BORDE = 0
-BORDE_LIGERO = 3
-BORDE_INTERMEDIO = 8
-BORDE_PRONUNCIADO = 15
+SIN_BORDE = 0 # para que no tenga borde respecto a su fondo, por ejemplo un boton sin borde, o un menu sin borde, para que se vea el fondo de la ventana
+BORDE_LIGERO = 0
+BORDE_INTERMEDIO = 0
+BORDE_PRONUNCIADO = 0 
 #Fin de bordes de elementos
 
 
@@ -72,8 +74,8 @@ REDONDEO_PRONUNCIADO = 60
 #Fin de redondeo de elementos
 
 #Colores principales usados en botones y menus
-ELEMENTO_FONDO_PRINCIPAL = BLANCO
-ELEMENTO_FONDO_SECUNDARO = AZUL_PRINCIPAL
+ELEMENTO_FONDO_PRINCIPAL = (187, 165, 113)
+ELEMENTO_FONDO_SECUNDARO = None #Este color se usara para elementos que no tengan fondo, como el borde de un boton o el fondo de un menu, para que se vea el fondo de la ventana
 ELEMENTO_FONDO_TERCIARIO = VERDE
 ELEMENTO_BORDE_PRINCIPAL = AZUL_PRINCIPAL
 ELEMENTO_BORDE_SECUNDARIO = AZUL_SECUNDARIO

@@ -60,23 +60,46 @@ class Ventana(
             "salas_disponibles" : []
         }
 
-
         self.elementos_creados = []
 
         # Logo
-        self.logo_rummy = pygame.image.load("assets//Imagenes//Logos//Logo(1).png")
+        ruta_logo = importar_desde_carpeta(
+            nombre_archivo="Imagenes/Logos/Logo_O.png",
+            nombre_carpeta="assets"
+        )
+
+        self.logo_rummy = pygame.image.load(ruta_logo).convert_alpha()
+
+        # ================= NUEVO: CARGA DE FONDOS (Carpeta fondos) =================
+        try:
+            # Usando los nombres exactos de tu carpeta 'fondos': fondo.png y fondo_mesa.png
+            ruta_fondo_menus = importar_desde_carpeta(nombre_archivo="fondos/fondo.png", nombre_carpeta="assets/Imagenes")
+            self.img_fondo_menus = pygame.image.load(ruta_fondo_menus).convert()
+            self.img_fondo_menus = pygame.transform.scale(self.img_fondo_menus, (constantes.ANCHO_VENTANA, constantes.ALTO_VENTANA))
+
+            ruta_fondo_mesa = importar_desde_carpeta(nombre_archivo="fondos/fondo_mesa.png", nombre_carpeta="assets/Imagenes")
+            self.img_fondo_mesa = pygame.image.load(ruta_fondo_mesa).convert()
+            self.img_fondo_mesa = pygame.transform.scale(self.img_fondo_mesa, (constantes.ANCHO_VENTANA, constantes.ALTO_VENTANA))
+        except Exception as e:
+            print(f"Error cargando imágenes de fondo desde la carpeta fondos: {e}")
+            # Respaldo en caso de error
+            self.img_fondo_menus = pygame.Surface((constantes.ANCHO_VENTANA, constantes.ALTO_VENTANA))
+            self.img_fondo_menus.fill(constantes.FONDO_VENTANA)
+            self.img_fondo_mesa = pygame.Surface((constantes.ANCHO_VENTANA, constantes.ALTO_VENTANA))
+            self.img_fondo_mesa.fill((0, 100, 0)) 
+        # ===========================================================================
 
         # Menús iniciales
         self.menu_instrucciones = self.Menu_instrucciones()
         self.menu_seleccion_sala = self.Menu_seleccion_sala()
         self.menu_inicio = self.Menu_inicio()
         self.boton_jugar = self.Boton_jugar()
-        # Estado de música de menú (inicializar antes de crear el botón)
+        # Estado de música de menú
         self.musica_activa = False
-        # volumen maestro (1 = on, 0 = off)
+        # volumen maestro
         self.master_volume = 1
 
-        # Crear botón silenciar al abrir el juego (permanece en menú principal)
+        # Crear botón silenciar
         try:
             self.crear_boton_silenciar()
         except Exception:
@@ -87,7 +110,6 @@ class Ventana(
 
         #Temporizador
         self.clock = pygame.time.Clock()
-        # (boton_silenciar ya creado arriba)
 
     @classmethod
     def preparar_imagenes_cartas(cls):
@@ -205,6 +227,7 @@ class Ventana(
             print(f"No se pudo reproducir música de partida: {e}")
 
     """Funcion que crea el boton Jugar, se pasa por parametros las constantes, las posiciones se definen manualemente"""
+
     def Boton_jugar(self):
         x,y = self.centrar(constantes.ELEMENTO_MEDIANO_ANCHO,constantes.ELEMENTO_MEDIANO_ALTO)
         ancho= constantes.ELEMENTO_MEDIANO_ANCHO
@@ -217,19 +240,50 @@ class Ventana(
                 pass
             controladores.Mostrar_seccion(self,self.menu_inicio)
 
-        boton_jugar = self.boton_generico(x,y,ancho,alto,"JUGAR",accion)
+        boton_jugar = self.boton_generico(x,y,ancho,alto," ",accion,)
+
+        try:
+            ruta_img = importar_desde_carpeta(
+                nombre_archivo="Imagenes/Botones/boton_jugar.png",
+                nombre_carpeta="assets"
+            )
+
+            img = pygame.image.load(ruta_img).convert_alpha()
+
+            escala = 0.85  # ajusta este número
+            nuevo_ancho = int(img.get_width() * escala)
+            nuevo_alto = int(img.get_height() * escala)
+
+            img = pygame.transform.smoothscale(img, (nuevo_ancho, nuevo_alto))
+
+            boton_jugar.rect.width = nuevo_ancho
+            boton_jugar.rect.height = nuevo_alto
+            boton_jugar.rect.center = (x + ancho // 2, y + alto // 2)
+
+            boton_jugar.superficie_texto = img
+            boton_jugar.rect_texto = img.get_rect(center=boton_jugar.rect.center)
+
+            boton_jugar.color_actual = None
+            boton_jugar.color = None
+            boton_jugar.color_hover = None
+            boton_jugar.color_clicado = None
+            boton_jugar.grosor_borde = 0
+            boton_jugar.color_borde_actual = None
+
+        except Exception as e:
+                print(f"Error cargando imagen del botón jugar: {e}")
 
         self.elementos_creados.append(boton_jugar)
         return boton_jugar
 
     def crear_boton_silenciar(self):
         """Crea el botón de silenciar/activar música mostrado en el menú principal."""
-        # Tamaño y posición: esquina superior derecha
+        # Tamaño y posición: esquina inferior izquierda
         tamaño = int(min(constantes.ANCHO_VENTANA, constantes.ALTO_VENTANA) * 0.06)  # tamaño relativo
-        ancho = tamaño
+        ancho = tamaño * 1.2
         alto = tamaño
-        x = constantes.ANCHO_VENTANA - ancho - 20
-        y = 20
+        x = 100
+        y = constantes.ALTO_VENTANA - alto - 60
 
         def accion():
             try:
@@ -253,41 +307,39 @@ class Ventana(
             except Exception as e:
                 print(f"Error al alternar sonido: {e}")
 
+
         # Crear botón base (sin texto) y luego reemplazar su superficie_texto por la imagen
-        boton = self.boton_generico(x, y, ancho, alto, "", accion, tp_color="s", tp_borde="p")
+        boton = self.boton_generico(x, y, ancho, alto, "", accion, tp_color="s", tp_borde="n")
 
-        # Ajustar borde visible y comportamiento hover/click
-        boton.grosor_borde = constantes.BORDE_LIGERO
-        boton.color_borde_hover = constantes.ELEMENTO_HOVER_PRINCIPAL
-        boton.color_borde_clicado = constantes.ELEMENTO_CLICADO_PRINCIPAL
+        # Quitar fondo y bordes
+        boton.color_actual = None
+        boton.color = None
+        boton.color_hover = None
+        boton.color_clicado = None
 
-        # Establecer color base según estado master_volume (persistente)
+        boton.grosor_borde = 0
+        boton.color_borde = None
+        boton.color_borde_actual = None
+        boton.color_borde_hover = None
+        boton.color_borde_clicado = None
+
+        # Cargar imagen del botón volumen
         try:
-            if self.master_volume == 1:
-                boton.color_borde = constantes.ELEMENTO_CLICADO_PRINCIPAL
-            else:
-                boton.color_borde = constantes.GRIS
-        except Exception:
-            boton.color_borde = constantes.GRIS
+            ruta_img = importar_desde_carpeta(
+                nombre_archivo="Imagenes/botones/boton_volumen.png",
+                nombre_carpeta="assets"
+            )
 
-        boton.color_borde_actual = boton.color_borde
-
-        # Cargar imagen Mute.png desde assets y usarla como superficie
-        try:
-            ruta_img = importar_desde_carpeta(nombre_archivo="Imagenes/Logos/Mute.png", nombre_carpeta="assets")
             img = pygame.image.load(ruta_img).convert_alpha()
             img = pygame.transform.smoothscale(img, (ancho, alto))
+
             boton.superficie_texto = img
             boton.rect_texto = img.get_rect(center=boton.rect.center)
-            # Fondo transparente (usar mismo color que ventana)
-            boton.color_actual = constantes.FONDO_VENTANA
-        except Exception as e:
-            print(f"No se pudo cargar imagen Mute.png: {e}")
 
-        # (color_borde ya inicializado arriba)
+        except Exception as e:
+            print(f"No se pudo cargar imagen boton_volumen.png: {e}")
 
         self.boton_silenciar = boton
-        # NO agregar a elementos_creados para que Mostrar_seccion no lo oculte
         return self.boton_silenciar
 
     """Boton de salir del juego"""
@@ -385,7 +437,12 @@ class Ventana(
                 menu.verificar_hovers(posicion_raton)
 
     def ejecutar_dibujado(self):
-        self.pantalla.fill(constantes.FONDO_VENTANA)
+        # SUSTITUCIÓN DE: self.pantalla.fill(constantes.FONDO_VENTANA)
+        # Lógica para decidir qué fondo dibujar según la sección actual
+        if hasattr(self, 'mesa') and self.mesa and getattr(self.mesa, 'visible', False):
+            self.pantalla.blit(self.img_fondo_mesa, (0, 0))
+        else:
+            self.pantalla.blit(self.img_fondo_menus, (0, 0))
         
         self.boton_jugar.dibujar()
         
@@ -403,17 +460,14 @@ class Ventana(
                 if nombre_menu == "mesa" and hasattr(self.mesa, 'menus_activos') and self.mesa.menus_activos:
                     continue
 
-          
-
-
                 menu.dibujar_menu()
 
         if hasattr(self, 'mesa') and self.mesa and hasattr(self.mesa, 'menus_activos'):
             for menu in self.mesa.menus_activos:
                 menu.dibujar_menu()
 
-
         self.cartel_alerta.dibujar()
+        
         # dibujar boton silenciar al final para que quede por encima de los menus
         try:
             menu_visible = getattr(self.menu_inicio, 'visible', False) if hasattr(self, 'menu_inicio') else False
@@ -422,6 +476,7 @@ class Ventana(
                 self.boton_silenciar.dibujar()
         except Exception:
             pass
+
     def Correr_juego(self):
         ejecutar = True
         
@@ -442,11 +497,13 @@ class Ventana(
                 controladores.modificacion_real_datos(self,evento,constantes)
                 self.ejecutar_manejo_eventos(evento)
 
-            
-            self.pantalla.fill(constantes.FONDO_VENTANA)
+            # ELIMINADO: self.pantalla.fill(constantes.FONDO_VENTANA)
+            # Ya no es necesario limpiar con un color, porque ejecutar_dibujado()
+            # ahora dibuja la imagen de fondo (blit) que cubre toda la pantalla.
 
             self.ejecutar_dibujado()
-            #======Jesua:Mostrar tabla de puntuación mientras se mantiene presionada la tecla TAB
+            
+            # ======Jesua:Mostrar tabla de puntuación mientras se mantiene presionada la tecla TAB
             try:
                 keys = pygame.key.get_pressed()
                 if hasattr(self, 'mesa_juego') and self.mesa_juego:
