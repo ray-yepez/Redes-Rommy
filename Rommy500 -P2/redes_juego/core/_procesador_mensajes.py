@@ -182,6 +182,7 @@ class ProcesadorMensajesMixin:
                                 'TotalJugadores': len(self.clientes),
                                 "lista_jugadores": [c['nombre'] for c in self.clientes]
                             })
+                            
                             self.verificar_inicio_partida()
                     if mensaje.get('type') == 'Tomar_Carta_Descarte':
                         print(f"Mensaje del cliente {id_jugador}: {mensaje}")
@@ -452,8 +453,7 @@ class ProcesadorMensajesMixin:
                                 
                                 elif id_jugador==id_siguiente:
                                     print("Todos los jugadores rechazaron comprar la carta descartada.")
-                                    if self.descarte:
-                                        self.quema.append(self.descarte.pop())
+                                    self.quema.append(self.descarte.pop())
                                     self.ultimo_descarte = []
                                     self.mesa_juego.elementos_mesa["dato_carta_descarte"] = None
                                     self.mesa_juego.elementos_mesa["cantidad_cartas_quema"] += 1
@@ -528,8 +528,7 @@ class ProcesadorMensajesMixin:
                                     self.contador_turno_compra += 1
                         else:
                             print("Funciona :P, ya eres el ultimo en comprar")
-                            if self.descarte:
-                                self.quema.append(self.descarte.pop())
+                            self.quema.append(self.descarte.pop())
                             self.ultimo_descarte = []
                             self.mesa_juego.elementos_mesa["dato_carta_descarte"] = None
                             self.mesa_juego.elementos_mesa["cantidad_cartas_quema"] += 1
