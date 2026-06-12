@@ -1319,8 +1319,8 @@ o Descartar: Colocar una carta boca arriba en el centro de la mesa para finaliza
                             msg = self.message_input_box.text.strip()
                             if msg:
                                 self.network_manager.send_chat_message(msg)
-                                #if hasattr(self, 'messages'):
-                                #    self.messages = network_manager.messagesServer()
+                                if hasattr(self, 'messages'):
+                                    self.messages = network_manager.messagesServer()
                                 self.message_input_box.text = ""
                                 self.message_input_box.txt_surface = self.get_font(20).render("", True, (0,0,0))
                                 if self.network_manager.player:
@@ -1352,8 +1352,8 @@ o Descartar: Colocar una carta boca arriba en el centro de la mesa para finaliza
                     msg = self.message_input_box.text.strip()
                     if msg != "":
                         self.network_manager.send_chat_message(msg)
-                        # if hastatt(self, 'messages'):
-                        #     self.messages = network_manager.messagesServer()
+                         if hastatt(self, 'messages'):
+                             self.messages = network_manager.messagesServer()
                         self.message_input_box.text = ""
                         self.message_input_box.txt_surface = self.get_font(20).render("", True, (0,0,0))
                         
