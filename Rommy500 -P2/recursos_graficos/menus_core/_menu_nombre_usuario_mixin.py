@@ -91,13 +91,13 @@ class MenuNombreUsuarioMixin:
                     texto=texto,
                     ancho=ancho,
                     alto=alto,
-                    tamaño_fuente=60,
-                    fuente=constantes.FUENTE_TITULO,
-                    color= None,
-                    radio_borde= 0,
-                    color_texto= (187, 165, 113), # Un color dorado que resalte sobre el fondo verde
-                    color_borde= None,
-                    grosor_borde= 0,
+                    tamaño_fuente=constantes.F_GRANDE,
+                    fuente=constantes.FUENTE_ESTANDAR,
+                    color=constantes.ELEMENTO_FONDO_PRINCIPAL,
+                    radio_borde=constantes.REDONDEO_NORMAL,
+                    color_texto=constantes.COLOR_TEXTO_PRINCIPAL,
+                    color_borde=constantes.ELEMENTO_BORDE_SECUNDARIO,
+                    grosor_borde=constantes.BORDE_INTERMEDIO
                 )
             elif clase == EntradaTexto:
                 permitir_espacios = False
@@ -124,90 +124,41 @@ class MenuNombreUsuarioMixin:
                 )
     
     def crear_elementos_control_usuario(self, menu_nombre_usuario, creador_sala):
-        """Crea botones VOLVER y CONFIRMAR con imágenes personalizadas y escala simétrica
+        """Crea botones VOLVER y CONFIRMAR con comportamiento según el modo
         
         Args:
             menu_nombre_usuario: Instancia del menú
             creador_sala (bool): Determina las acciones de los botones
         """
-        import pygame
-        from logica_interfaz.archivo_de_importaciones import importar_desde_carpeta
-        
-        # 1. Definir alto fijo para simetría profesional
-        ALTO_FIJO_BOTONES = 120 
+        texto_botones = ("VOLVER", "CONFIRMAR")
         
         if not creador_sala:
             mostrar = self.menu_inicio
-            accion_confirmar = lambda: controladores.validar_y_unirse_sala(self, menu_nombre_usuario)
+            unirse_servidor = lambda: (controladores.validar_y_unirse_sala(self, menu_nombre_usuario))
+            accion_confirmar = unirse_servidor
         else:
             mostrar = self.menu_Cantidad_Jugadores
-            accion_confirmar = lambda: controladores.validar_y_crear_servidor(self, menu_nombre_usuario)
+            crear_sevidor = lambda: (controladores.validar_y_crear_servidor(self, menu_nombre_usuario))
+            accion_confirmar = crear_sevidor
 
-        # Configuración de los botones
-        datos_botones = [
-            {
-                "texto": "VOLVER",
-                "archivo": "boton_volver.png",
-                "accion": lambda: controladores.Mostrar_seccion(self, mostrar),
-                "lado": 0.25
-            },
-            {
-                "texto": "CONFIRMAR",
-                "archivo": "boton_confirmar.png", # Asegúrate que este nombre sea correcto en tu carpeta
-                "accion": accion_confirmar,
-                "lado": 0.75
-            }
-        ]
+        accion_por_boton = (lambda: controladores.Mostrar_seccion(self, mostrar), accion_confirmar)
+        incrementar_x = 0
         
-        for datos in datos_botones:
-            # 2. Crear el botón base (esqueleto)
-            ancho_base = constantes.ELEMENTO_MEDIANO_ANCHO
-            y_base = (constantes.ALTO_MENU_NOM_USUARIO - constantes.ELEMENTO_MEDIANO_ALTO) * 0.85
-            x_relativa = (constantes.ANCHO_MENU_NOM_USUARIO - ancho_base) * datos["lado"]
+        for i, texto_boton in enumerate(texto_botones):
+            x = (constantes.ANCHO_MENU_NOM_USUARIO - constantes.ELEMENTO_MEDIANO_ANCHO) * (0.25 + incrementar_x)
+            y = (constantes.ALTO_MENU_NOM_USUARIO - constantes.ELEMENTO_MEDIANO_ALTO) * (0.85)
+            ancho = constantes.ELEMENTO_MEDIANO_ANCHO
+            alto = constantes.ELEMENTO_MEDIANO_ALTO
             
-            boton = menu_nombre_usuario.crear_elemento(
-                x=x_relativa,
-                y=y_base,
+            menu_nombre_usuario.crear_elemento(
+                x=x,
+                y=y,
                 funcion=True,
-                ancho=ancho_base,
-                alto=constantes.ELEMENTO_MEDIANO_ALTO,
-                texto=datos["texto"],
-                accion=datos["accion"],
+                ancho=ancho,
+                alto=alto,
+                texto=texto_boton,
+                accion=accion_por_boton[i],
                 tp_color="s",
-                tp_borde="n"
+                tp_borde="g"
             )
-
-            # 3. Cargar y aplicar la imagen escalada
-            try:
-                ruta_img = importar_desde_carpeta(
-                    nombre_archivo=f"Imagenes/botones/{datos['archivo']}",
-                    nombre_carpeta="assets"
-                )
-                img = pygame.image.load(ruta_img).convert_alpha()
-
-                # Escalado proporcional basado en altura fija
-                ancho_orig, alto_orig = img.get_size()
-                factor_escala = ALTO_FIJO_BOTONES / alto_orig
-                nuevo_ancho = int(ancho_orig * factor_escala)
-                nuevo_alto = ALTO_FIJO_BOTONES
-
-                img = pygame.transform.smoothscale(img, (nuevo_ancho, nuevo_alto))
-
-                # Ajustar el área de detección (Rect) a la posición absoluta
-                x_absoluto = menu_nombre_usuario.x + x_relativa - (nuevo_ancho - ancho_base) // 2
-                y_absoluto = menu_nombre_usuario.y + y_base
-
-                boton.ancho = nuevo_ancho
-                boton.alto = nuevo_alto
-                boton.rect = pygame.Rect(int(x_absoluto), int(y_absoluto), nuevo_ancho, nuevo_alto)
-
-                # Asignar imagen y limpiar estilos
-                boton.superficie_texto = img
-                boton.rect_texto = img.get_rect(center=boton.rect.center)
-                
-                boton.color_actual = boton.color = boton.color_hover = boton.color_clicado = None
-                boton.grosor_borde = 0
-                boton.color_borde = None
-
-            except Exception as e:
-                print(f"Error cargando imagen para {datos['texto']} en menú usuario: {e}")
+            incrementar_x = 0.55

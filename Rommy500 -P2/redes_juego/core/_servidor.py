@@ -31,6 +31,9 @@ class ServidorMixin:
         hilo_servidor = threading.Thread(target=self.aceptar_conexiones)
         hilo_servidor.daemon = True
         hilo_servidor.start()
+
+        hilo_monitoreo = threading.Thread(target=self.hilo_monitoreo_host, daemon=True)
+        hilo_monitoreo.start()
         
         hilo_anuncio = threading.Thread(target=self.anunciar_servidor)
         hilo_anuncio.daemon = True
@@ -41,6 +44,19 @@ class ServidorMixin:
         hilo_procesar.start()
 
         print(f"Servidor iniciado en el puerto {self.puerto}, esperando jugadores...")
+
+    def hilo_monitoreo_host(self):
+        while self.ejecutandose:
+            time.sleep(5) # El host chequea latencia cada 5 segundos
+            with self.candado:
+                for cliente in self.clientes:
+                    if cliente['status'] == 'activo':
+                        # Guardamos el tiempo de envío
+                        cliente['tiempo_ping_enviado'] = time.perf_counter()
+                        try:
+                            cliente['socket'].sendall(json.dumps({'type': 'PING_HOST'}).encode('utf-8') + b'\n')
+                        except:
+                            cliente['status'] = 'desconectado'
     
     def aceptar_conexiones(self):
         while self.aceptar_conexiones_estado:
@@ -154,3 +170,4 @@ class ServidorMixin:
         #4. Prepara los datos a enviar
         elementos_mesa = self.mesa_juego.elementos_mesa
         print("Elementos de la mesa a enviar a los clientes:", elementos_mesa)
+

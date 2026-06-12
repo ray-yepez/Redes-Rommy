@@ -60,15 +60,13 @@ class MenuCantidadJugadoresMixin:
             texto="SELECCIONE EL NUMERO DE JUGADORES",
             ancho=ancho_seleccion,
             alto=alto_seleccion,
-            tamaño_fuente=60,
-            fuente=constantes.FUENTE_TITULO,
-            # --- CAMBIOS AQUÍ ---
-            color=None, # Cambiamos el color de fondo a None para que sea transparente
-            radio_borde=0, # Quitamos el redondeo ya que no habrá fondo
-            color_texto=(187, 165, 113), # Asegúrate que sea un color que resalte sobre el verde (como blanco o dorado)
-            color_borde=None, # Quitamos el color del borde
-            grosor_borde=0, # Ponemos el grosor del borde en 0
-            # --------------------
+            tamaño_fuente=constantes.F_GRANDE,
+            fuente=constantes.FUENTE_ESTANDAR,
+            color=constantes.ELEMENTO_FONDO_PRINCIPAL,
+            radio_borde=constantes.REDONDEO_NORMAL,
+            color_texto=constantes.COLOR_TEXTO_PRINCIPAL,
+            color_borde=constantes.ELEMENTO_BORDE_SECUNDARIO,
+            grosor_borde=constantes.BORDE_INTERMEDIO,
         )
 
         # Radio buttons con imágenes de cartas en layout horizontal
@@ -128,88 +126,37 @@ class MenuCantidadJugadoresMixin:
         return posicion_y
     
     def crear_elementos_control_cantidad_jugadores(self, menu_cantidad, posicion_y):
-        """Crea botones VOLVER y CONFIRMAR con imágenes personalizadas
+        """Crea botones VOLVER y CONFIRMAR
         
         Args:
             menu_cantidad: Instancia del menú
-            posicion_y: Posición Y de referencia
+            posicion_y: Posición Y de referencia para colocar botones debajo
         """
-        # 1. Definir alto fijo para que ambos botones sean iguales
-        ALTO_FIJO_BOTONES = 120 
-        
-        # Posición vertical base
-        y_base = (constantes.ALTO_MENU_CNT_J - constantes.ELEMENTO_MEDIANO_ALTO) * (posicion_y + 0.5)
+        y = (constantes.ALTO_MENU_CNT_J - constantes.ELEMENTO_MEDIANO_ALTO) * (posicion_y + 0.5)
 
-        datos_botones = [
-            {
-                "texto": "VOLVER",
-                "archivo": "boton_volver.png",
-                "accion": lambda: controladores.Mostrar_seccion(self, self.menu_inicio),
-                "lado": 0.2
-            },
-            {
-                "texto": "CONFIRMAR",
-                "archivo": "boton_confirmar.png", 
-                "accion": lambda: controladores.mostrar_menu_nombre_usuario(self, True),
-                "lado": 0.8
-            }
-        ]
+        elementos_textos = ("VOLVER", "CONFIRMAR")
+        funciones = (
+            lambda: controladores.Mostrar_seccion(self, self.menu_inicio),
+            lambda: controladores.mostrar_menu_nombre_usuario(self, True)
+        )
 
-        for datos in datos_botones:
-            # 2. Crear el botón base
-            ancho_base = constantes.ELEMENTO_MEDIANO_ANCHO
-            alto_base = constantes.ELEMENTO_MEDIANO_ALTO
-            x_relativa = (constantes.ANCHO_MENU_CNT_J - ancho_base) * datos["lado"]
+        for i, texto in enumerate(elementos_textos):
+            ancho = constantes.ELEMENTO_MEDIANO_ANCHO
+            alto = constantes.ELEMENTO_MEDIANO_ALTO
             
-            boton = menu_cantidad.crear_elemento(
-                x=x_relativa,
-                y=y_base,
+            if i == 0:
+                x = (constantes.ANCHO_MENU_CNT_J - constantes.ELEMENTO_MEDIANO_ANCHO) * 0.2
+            else:
+                x = (constantes.ANCHO_MENU_CNT_J - constantes.ELEMENTO_MEDIANO_ANCHO) * 0.8
+
+            menu_cantidad.crear_elemento(
+                x=x,
+                y=y,
                 funcion=True,
-                ancho=ancho_base,
-                alto=alto_base,
-                texto=datos["texto"],
-                accion=datos["accion"],
+                ancho=ancho,
+                alto=alto,
+                texto=texto,
+                accion=funciones[i],
                 tp_color="s",
-                tp_borde="n"
+                tp_borde="g"
             )
-
-            # 3. Cargar y aplicar la imagen
-            try:
-                ruta_img = importar_desde_carpeta(
-                    nombre_archivo=f"Imagenes/botones/{datos['archivo']}",
-                    nombre_carpeta="assets"
-                )
-                img = pygame.image.load(ruta_img).convert_alpha()
-
-                # Escala proporcional basada en altura fija
-                ancho_orig, alto_orig = img.get_size()
-                factor_escala = ALTO_FIJO_BOTONES / alto_orig
-                nuevo_ancho = int(ancho_orig * factor_escala)
-                nuevo_alto = ALTO_FIJO_BOTONES
-
-                img = pygame.transform.smoothscale(img, (nuevo_ancho, nuevo_alto))
-
-                # Coordenadas absolutas para el área de clic
-                x_absoluto = menu_cantidad.x + x_relativa
-                y_absoluto = menu_cantidad.y + y_base
-
-                # Ajustar el rect del botón (centrando el ancho si es necesario)
-                boton.rect = pygame.Rect(
-                    int(x_absoluto - (nuevo_ancho - ancho_base) // 2),
-                    int(y_absoluto),
-                    nuevo_ancho,
-                    nuevo_alto
-                )
-
-                # Asignar la imagen al botón
-                boton.superficie_texto = img
-                boton.rect_texto = img.get_rect(center=boton.rect.center)
-
-                # Limpiar el diseño genérico
-                boton.color_actual = boton.color = boton.color_hover = boton.color_clicado = None
-                boton.grosor_borde = 0
-                boton.color_borde = None
-                boton.color_borde_actual = None
-
-            except Exception as e:
-                print(f"Error cargando imagen para {datos['texto']}: {e}")

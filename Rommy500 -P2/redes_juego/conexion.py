@@ -11,9 +11,9 @@ from redes_juego import archivo_de_importaciones
 from redes_juego.core._persistencia import PersistenciaMixin
 from redes_juego.core._mensajeria import MensajeriaMixin
 from redes_juego.core._validadores import ValidadoresMixin
-from redes_juego.servidor.session_manager import ServidorMixin
+from redes_juego.core._servidor import ServidorMixin
 from redes_juego.core._cliente import ClienteMixin
-from redes_juego.partida.logica_partida import LogicaPartidaMixin
+from redes_juego.core._logica_partida import LogicaPartidaMixin
 from redes_juego.core._procesador_mensajes import ProcesadorMensajesMixin
 
 importar_desde_carpeta = archivo_de_importaciones.importar_desde_carpeta

@@ -53,32 +53,16 @@ class ClienteMixin:
             self.hilo_recepcion = threading.Thread(target=self._recibir_mensajes)
             self.hilo_recepcion.daemon = True
             self.hilo_recepcion.start()
-            self.hilo_ping = threading.Thread(target=self._enviar_pings)
-            self.hilo_ping.daemon = True
-            self.hilo_ping.start()
             return True
         except Exception as e:
             print(f"Error al conectar al servidor: {e}")
             return False
-    def _enviar_pings(self):
-        """Envía un heartbeat al servidor cada 5 segundos"""
-        while self.conectado:
-            time.sleep(5)
-            if self.conectado:
-
-                
-                self.tiempo_ping_enviado = time.perf_counter()
-
-                self.enviar_accion('Ping')
-
+            
     def _recibir_mensajes(self):
         buffer = ""
         while self.conectado:
             try:
-                data = self.socket_cliente.recv(65536)
-                if not data:
-                    print("[RED-CLIENTE] Servidor cerró la conexión.")
-                    break
+                data = self.socket_cliente.recv(4096)
                 buffer += data.decode('utf-8')
                 while '\n' in buffer:
                     mensaje_str, buffer = buffer.split('\n', 1)
@@ -86,20 +70,49 @@ class ClienteMixin:
                         mensaje = json.loads(mensaje_str)
                         self._manejo_mensaje_red(mensaje)
                         
+                if buffer.strip() and buffer.strip().startswith('{') and buffer.strip().endswith('}'):
+                        try:
+                            mensaje = json.loads(buffer.strip())
+                            self._manejo_mensaje_red(mensaje)
+                            buffer = "" # Limpiamos el buffer tras procesar
+                        except:
+                            pass # Seguimos esperando más datos
+                            
             except Exception as e:
                 print(f"Error al recibir mensaje del servidor: {e}")
-                import traceback
-                traceback.print_exc()
                 break
                 # Intentar reconexión automática
                 if self.id_jugador is not None and self.socket_cliente is not None:
                     ip_servidor = self.socket_cliente.getpeername()[0]
                     ##self.intentar_reconexion(ip_servidor)
 
-
     def _manejo_mensaje_red(self, mensaje):
         # Método completo para procesar todos los mensajes del servidor
         # Este método es muy largo (360+ líneas) y se mantiene completo aquí
+
+        # =====================================================================
+        # ─── INYECCIÓN DE RED PURA: INTERCEPTACIÓN DEL HEARTBEAT ───
+        # =====================================================================
+        
+        # --- NIVEL 1: FILTRO DE LATENCIA PRIORITARIO ---
+        if isinstance(mensaje, dict) and mensaje.get('type') == 'PONG':
+            latencia = (time.perf_counter() - self.tiempo_ultimo_ping) * 1000
+            print(f">>> Mi latencia al servidor: {latencia:.2f} ms")
+            reporte = {"type": "ReporteLatencia", "valor": latencia}
+            self.socket_cliente.sendall(json.dumps(reporte).encode('utf-8') + b'\n')
+            return
+            
+        if not hasattr(self, 'heartbeat_running') and mensaje.get('type') in ['Bienvenido', 'ManoInicial', 'NuevoJugador']:
+            self.iniciar_heartbeat()
+
+        if mensaje.get('type') == 'PING_HOST':
+        # Responder inmediatamente al Host
+            self.socket_cliente.sendall(json.dumps({'type': 'PONG_HOST'}).encode('utf-8') + b'\n')
+            return
+
+        # =====================================================================
+        # ─── FIN DE LA INTERCEPTACIÓN (EL CÓDIGO ORIGINAL CONTINÚA INTACTO) ───
+        # =====================================================================
         
         # Inicializar variable si no existe
         if not hasattr(self, 'descarto_recientemente'):
@@ -643,73 +656,70 @@ class ClienteMixin:
         socket_busqueda = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         socket_busqueda.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         socket_busqueda.bind(('', 5556)) # Escuchar en el mismo puerto que el anuncio
-        socket_busqueda.settimeout(2.0) # Esperar 2 segundos para mayor responsividad
+        socket_busqueda.settimeout(5) # Esperar 5 segundos
 
-        print("[RED-CLIENTE] Buscando servidor en la red...")
-        try:
-            while self.buscador:
-                try:
-                    data, direccion_servidor = socket_busqueda.recvfrom(1024)
-                    mensaje = json.loads(data.decode('utf-8'))
-                    ip_encontrada = direccion_servidor[0]
-                    
-                    if mensaje.get('type') != 'RummyServer':
-                        continue
-                        
-                    nombre_partida = mensaje.get('partida', 'Desconocida')
-                    nombre_host = mensaje.get('host', 'Host')
-                    max_jugadores = mensaje.get('max_jugadores', 7)
-                    jugadores = mensaje.get('jugadores', 0)
-                    self.jugadores_desconectados = mensaje.get('id_jugadores_desconectados', {})
-                    lista_jugadores = mensaje.get('lista_jugadores', [])
-                    
-                    info = {
-                        "nombre": nombre_partida,
-                        "jugadores": jugadores,
-                        "max_jugadores": max_jugadores,
-                        "ip": ip_encontrada,
-                        "lista_jugadores": lista_jugadores,
-                        "creador": nombre_host
-                    }
-                    
-                    servidor_encontrado = None
-                    for server in self.conexiones_disponibles:
-                        if server['ip'] == ip_encontrada:
-                            servidor_encontrado = server
-                            break
+        print("Buscando servidor en la red...")
+        while self.buscador:
+            try:
+                data, direccion_servidor = socket_busqueda.recvfrom(1024)
+                mensaje = json.loads(data.decode('utf-8'))
+                ip_encontrada = direccion_servidor[0]
+                nombre_partida = mensaje.get('partida', 'Desconocida')
+                nombre_host = mensaje.get('host', 'Host')
+                max_jugadores = mensaje.get('max_jugadores', 7)
+                jugadores = mensaje.get('jugadores', 0)
+                self.jugadores_desconectados = mensaje.get('id_jugadores_desconectados', {})
+                lista_jugadores = mensaje.get('lista_jugadores', [])
+                info = {"nombre": nombre_partida,"jugadores":jugadores,"max_jugadores":max_jugadores,"ip": ip_encontrada,"lista_jugadores":lista_jugadores,"creador":nombre_host}
+                servidor_encontrado = None
+                for server in self.conexiones_disponibles:
+                    if server['ip'] == ip_encontrada:
+                        servidor_encontrado = server
+                        break  # Se encontró, no es necesario seguir buscando
+                if mensaje.get('type') == 'RummyServer' and servidor_encontrado == None:
+                    print(f"Servidor encontrado en la IP: {ip_encontrada} - Partida: {nombre_partida} - Host: {nombre_host}")
+                    self.conexiones_disponibles.append(info)
+                    evento_py = pygame.event.Event(constantes.EVENTO_SALAS_ENCONTRADAS,salas=self.conexiones_disponibles)
+                    pygame.event.post(evento_py)
+                    print(f"Conexiones disponibles: {self.conexiones_disponibles}")
+                elif servidor_encontrado["jugadores"] != jugadores:
+                    print(f"Actualizando Partida {nombre_partida} ")
+                    servidor_encontrado["jugadores"] = jugadores
+                    servidor_encontrado["lista_jugadores"] = lista_jugadores
+                    evento_py = pygame.event.Event(constantes.EVENTO_SALAS_ENCONTRADAS,salas=self.conexiones_disponibles)
+                    pygame.event.post(evento_py)
+                else:
+                    print(f"Servidor ya listado: {ip_encontrada}")
 
-                    if servidor_encontrado is None:
-                        # FIX N-09: Si no está, lo agregamos
-                        print(f"Servidor encontrado en la IP: {ip_encontrada} - Partida: {nombre_partida} - Host: {nombre_host}")
-                        self.conexiones_disponibles.append(info)
-                        evento_py = pygame.event.Event(constantes.EVENTO_SALAS_ENCONTRADAS, salas=self.conexiones_disponibles)
-                        pygame.event.post(evento_py)
-                    elif servidor_encontrado["jugadores"] != jugadores or servidor_encontrado["lista_jugadores"] != lista_jugadores:
-                        # Si está y hay cambios, actualizamos
-                        servidor_encontrado["jugadores"] = jugadores
-                        servidor_encontrado["lista_jugadores"] = lista_jugadores
-                        evento_py = pygame.event.Event(constantes.EVENTO_SALAS_ENCONTRADAS, salas=self.conexiones_disponibles)
-                        pygame.event.post(evento_py)
-                        
-                except socket.timeout:
-                    # FIX: No limpiar la lista en timeout, solo iterar para checar self.buscador
-                    pass
-                except Exception as e:
-                    print(f"[RED-CLIENTE] Error buscando servidor: {e}")
-                    time.sleep(1) # Pequeña pausa en caso de error continuo
-        finally:
-            socket_busqueda.close()
-            print("[RED-CLIENTE] Búsqueda de servidores detenida.")
 
+            except socket.timeout:
+                    print("Tiempo de búsqueda agotado. Servidor no encontrado.")
+                    self.conexiones_disponibles = []
+                    evento_py = pygame.event.Event(constantes.EVENTO_SALAS_ENCONTRADAS,salas=self.conexiones_disponibles)
+                    pygame.event.post(evento_py)
+            except Exception as e:
+                print(f"Error buscando servidor: {e}")
+            finally:
+                time.sleep(5) # Esperar antes de la siguiente búsqueda
+    
 
     def intentar_reconexion(self, ip_servidor, intentos=5, espera=3):
         """
-        Delega el intento de reconexión al ReconnectionManager.
+        Intenta reconectar automáticamente al servidor usando el id_jugador anterior.
         """
-        if not hasattr(self, '_reconnection_manager'):
-            from redes_juego.cliente.reconnection import ReconnectionManager
-            self._reconnection_manager = ReconnectionManager(self)
-        return self._reconnection_manager.intentar_reconexion(ip_servidor, intentos, espera)
+        # Cargar el ID local antes de intentar reconectar
+        id_local = self.cargar_id_local()
+        if id_local:
+            self.id_jugador = id_local
+        for intento in range(intentos):
+            print(f"Intentando reconectar... (Intento {intento + 1}/{intentos})")
+            exito = self.conectar_a_servidor(ip_servidor, id_jugador_reconectar=self.id_jugador)
+            if exito:
+                print("Reconexión exitosa.")
+                return True
+            time.sleep(espera)
+        print("No se pudo reconectar después de varios intentos.")
+        return False
     
     def enviar_accion(self, accion, datos=None):
         if self.conectado and self.socket_cliente:
@@ -785,3 +795,24 @@ class ClienteMixin:
         self.desconectar_servidor()
         self.desconectar_cliente()
 
+    def iniciar_heartbeat(self):
+        """Inicializa el hilo de monitoreo de latencia."""
+        if not hasattr(self, 'heartbeat_running'):
+            self.heartbeat_running = True
+            import threading
+            hilo = threading.Thread(target=self._bucle_heartbeat, daemon=True)
+            hilo.start()
+            print("[Sistema] Hilo de latencia iniciado.")
+
+    def _bucle_heartbeat(self):
+        import time
+        while self.heartbeat_running:
+            try:
+                # Marcamos el tiempo antes de enviar
+                self.tiempo_ultimo_ping = time.perf_counter()
+                mensaje_ping = {"type": "PING"}
+                # Enviamos el ping por el socket del cliente
+                self.socket_cliente.sendall(json.dumps(mensaje_ping).encode('utf-8'))
+            except Exception as e:
+                pass
+            time.sleep(2) # Envía un ping cada 2 segundos
