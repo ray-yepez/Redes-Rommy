@@ -27,6 +27,7 @@ Boton = importar_desde_carpeta(
     nombre_carpeta="recursos_graficos",
 )
 
+
 class ClienteMixin:
     """Mixin con métodos para funcionalidad del cliente"""
     
@@ -81,230 +82,212 @@ class ClienteMixin:
                     ##self.intentar_reconexion(ip_servidor)
 
     def _manejo_mensaje_red(self, mensaje):
-        """Método principal que despacha los mensajes al manejador correspondiente"""
+        # Método completo para procesar todos los mensajes del servidor
+        # Este método es muy largo (360+ líneas) y se mantiene completo aquí
+        
+        # Inicializar variable si no existe
         if not hasattr(self, 'descarto_recientemente'):
             self.descarto_recientemente = False
-
-        tipo_mensaje = mensaje.get('type')
-        if not tipo_mensaje:
-            return
-
-        # Generar el nombre del método manejador dinámicamente (ej: 'comprar' -> '_handle_comprar')
-        nombre_metodo = f"_handle_{tipo_mensaje.lower()}"
-
-        # Buscar el método en la clase y ejecutarlo
-        if hasattr(self, nombre_metodo):
-            try:
-                manejador = getattr(self, nombre_metodo)
-                manejador(mensaje)
-            except Exception as e:
-                print(f"[ERROR] Falló la ejecución del mensaje '{tipo_mensaje}': {e}")
-                import traceback
-                traceback.print_exc()
-        else:
-            print(f"[ADVERTENCIA] No existe un manejador para el mensaje de red: {tipo_mensaje}")
-
-    # =========================================================================
-    # A CONTINUACIÓN: Métodos Manejadores (Handlers)
-    # =========================================================================
-
-    def _handle_bienvenido(self, mensaje):
-        self.id_jugador = mensaje['id_jugador']
-        self.guardar_id_local()
-        nombre = mensaje.get('nombre')
-        print(f'ID:{self.id_jugador} - Nombre: {nombre}')
-        self.estado_juego = mensaje.get('game_state', None)
-
-    def _handle_reconectado(self, mensaje):
-        self.id_jugador = mensaje['id_jugador']
-        self.guardar_id_local()
-        self.estado_juego = mensaje.get('estado_juego', None)
-        print(f"Reconectado como {mensaje.get('nombre')}, estado restaurado.")
-
-    def _handle_jugadorreconectado(self, mensaje):
-        print(f"Jugador {mensaje.get('nombre')} (ID {mensaje.get('id_jugador')}) se ha reconectado.")
-        if getattr(self, 'un_juego', None):
-            nueva_lista = self.un_juego.lista_elementos.get("lista_jugadores", [])
-            if mensaje.get('lista_jugadores') != nueva_lista:
-                evento_py = pygame.event.Event(constantes.EVENTO_NUEVO_JUGADOR,
-                                               nueva_lista=mensaje.get('lista_jugadores'))
-                pygame.event.post(evento_py)
-
-    def _handle_game_update(self, mensaje):
-        self.estado_juego = mensaje.get('game_state', None)
-
-    def _handle_nuevojugador(self, mensaje):
-        print(
-            f"Nuevo jugador conectado: ID {mensaje.get('id_jugador')} - Nombre: {mensaje.get('nombre')}, Total: {mensaje.get('TotalJugadores')}")
-        if getattr(self, 'un_juego', None):
-            nueva_lista = self.un_juego.lista_elementos.get("lista_jugadores", [])
-            if mensaje.get('lista_jugadores') != nueva_lista:
-                evento_py = pygame.event.Event(constantes.EVENTO_NUEVO_JUGADOR,
-                                               nueva_lista=mensaje.get('lista_jugadores'))
-                pygame.event.post(evento_py)
-
-    def _handle_jugadordesconectado(self, mensaje):
-        print(f"Jugador desconectado: ID {mensaje.get('id_jugador')}, Total: {mensaje.get('TotalJugadores')}")
-        if getattr(self, 'un_juego', None):
-            nueva_lista = self.un_juego.lista_elementos.get("lista_jugadores", [])
-            if mensaje.get('lista_jugadores') != nueva_lista:
-                evento_py = pygame.event.Event(constantes.EVENTO_NUEVO_JUGADOR,
-                                               nueva_lista=mensaje.get('lista_jugadores'))
-                pygame.event.post(evento_py)
-
-    def _handle_servidorcerrado(self, mensaje):
-        print("El servidor ha cerrado la conexión.")
-
-    def _handle_manoinicial(self, mensaje):
-        if not hasattr(self, 'mesa_juego') or not self.mesa_juego:
-            self.mesa_juego = mesa_interfaz.Mesa_interfaz(self.un_juego)
-        evento_py = pygame.event.Event(constantes.EVENTO_INICIAR_PARTIDA, un_juego=self.un_juego, mesa=self.mesa_juego,
-                                       datos=mensaje)
-        pygame.event.post(evento_py)
-
-    def _handle_actualizacion_carta_descarte(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
-            if mensaje.get("dato_carta_descarte") is None:
-                self.descarto_recientemente = False
-            self.mesa_juego.elementos_mesa["cantidad_manos_jugadores"] = mensaje.get("cantidad_manos_jugadores")
-            self.mesa_juego.elementos_mesa["dato_carta_descarte"] = None
-            self.mesa_juego.carta_descarte = None
-            self.mesa_juego.actualizar_carta_descarte(self.mesa_juego.mesa)
-            self.mesa_juego.actualizar_manos_jugadores(self.mesa_juego.mesa)
-
-    def _handle_actualizacion_toma_descarte(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
-            self.mesa_juego.procesar_tomar_descarte(self.mesa_juego.mesa)
-
-    def _handle_descartar_carta(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
+        if mensaje['type'] == 'Bienvenido':
+            self.mi_id = mensaje.get('id_jugador')
+            print(f"Conectado exitosamente con el ID: {self.mi_id}")
+            self.id_jugador = mensaje['id_jugador']
+            self.guardar_id_local()
+            nombre = mensaje.get('nombre')
+            print(f'ID:{self.id_jugador} - Nombre: {nombre}')
+            self.estado_juego = mensaje.get('game_state', None)
+        elif mensaje['type'] == 'Reconectado':
+            self.id_jugador = mensaje['id_jugador']
+            self.guardar_id_local()
+            self.estado_juego = mensaje.get('estado_juego', None)
+            print(f"Reconectado como {mensaje.get('nombre')}, estado restaurado.")
+        elif mensaje['type'] == 'JugadorReconectado':
+            nombre = mensaje.get('nombre')
+            print(f"Jugador {mensaje['nombre']} (ID {mensaje['id_jugador']}) se ha reconectado.")
+            if self.un_juego:
+                nueva_lista = self.un_juego.lista_elementos["lista_jugadores"]
+                if mensaje.get('lista_jugadores') != nueva_lista:
+                    evento_py = pygame.event.Event(constantes.EVENTO_NUEVO_JUGADOR,nueva_lista =mensaje.get('lista_jugadores'))
+                    pygame.event.post(evento_py)
+        elif mensaje['type'] == 'game_update':
+            self.estado_juego = mensaje.get('game_state', None)
+        elif mensaje['type'] == 'NuevoJugador':
+            nombre = mensaje.get('nombre')
+            print(f"Nuevo jugador conectado: ID {mensaje['id_jugador']} - Nombre: {nombre}, Total jugadores: {mensaje['TotalJugadores']}")
+            if self.un_juego:
+                nueva_lista = self.un_juego.lista_elementos.get("lista_jugadores", [])
+                if mensaje.get('lista_jugadores') != nueva_lista:
+                    evento_py = pygame.event.Event(constantes.EVENTO_NUEVO_JUGADOR,nueva_lista =mensaje.get('lista_jugadores'))
+                    pygame.event.post(evento_py)
+                # Notificación visual
+                if mensaje['id_jugador'] != self.id_jugador:
+                    evento_notif = pygame.event.Event(
+                        constantes.EVENTO_NOTIFICACION_JUGADOR,
+                        nombre=nombre,
+                        accion="unio"
+                    )
+                    pygame.event.post(evento_notif)
+        elif mensaje['type'] == 'JugadorDesconectado':
+            print(f"Jugador desconectado: ID {mensaje['id_jugador']}, Total jugadores: {mensaje['TotalJugadores']}")
+            print(mensaje.get('lista_jugadores'))
+            nombre = mensaje.get('nombre')
+            if self.un_juego:
+                nueva_lista = self.un_juego.lista_elementos.get("lista_jugadores", [])
+                if mensaje.get('lista_jugadores') != nueva_lista:
+                    evento_py = pygame.event.Event(constantes.EVENTO_NUEVO_JUGADOR,nueva_lista =mensaje.get('lista_jugadores'))
+                    pygame.event.post(evento_py)
+                # Notificación visual
+                evento_notif = pygame.event.Event(
+                    constantes.EVENTO_NOTIFICACION_JUGADOR,
+                    nombre=nombre,
+                    accion="desconecto"
+                )
+                pygame.event.post(evento_notif)
+        elif mensaje['type'] == 'ServidorCerrado':
+            print("El servidor ha cerrado la conexión.")
+        elif mensaje["type"] == "ManoInicial":
+            if not self.mesa_juego:
+                self.mesa_juego = mesa_interfaz.Mesa_interfaz(self.un_juego)
+            evento_py = pygame.event.Event(constantes.EVENTO_INICIAR_PARTIDA,un_juego=self.un_juego,mesa=self.mesa_juego,datos=mensaje)
+            pygame.event.post(evento_py)
+            print(mensaje)
+        elif mensaje["type"] == "Actualizacion_Carta_Descarte":
+            print(mensaje)
+            if self.mesa_juego:
+                # Si dato_carta_descarte es None, significa que alguien compró o tomó la carta
+                # Resetear la variable para que el jugador que descartó pueda tener botones nuevamente
+                if mensaje.get("dato_carta_descarte") is None:
+                    self.descarto_recientemente = False
+                self.mesa_juego.elementos_mesa["cantidad_manos_jugadores"] = mensaje.get("cantidad_manos_jugadores")
+                self.mesa_juego.elementos_mesa["dato_carta_descarte"] = None
+                self.mesa_juego.carta_descarte = None
+                self.mesa_juego.actualizar_carta_descarte(self.mesa_juego.mesa)
+                self.mesa_juego.actualizar_manos_jugadores(self.mesa_juego.mesa)
+        elif mensaje["type"] == "Actualizacion_Toma_Descarte":
+            if self.mesa_juego:
+                self.mesa_juego.procesar_tomar_descarte(self.mesa_juego.mesa)
+        elif mensaje["type"] == "Descartar_Carta":
             self.mesa_juego.finalizar_turno(self.mesa_juego.mesa)
+            # Desactivar cartas del jugador que descartó
+            # Marcar que el jugador descartó recientemente (no puede comprar su propia carta)
             self.descarto_recientemente = True
-
-    def _handle_reactivar_botones_no_turno(self, mensaje):
-        self.descarto_recientemente = False
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
-            if not self.mesa_juego.tu_turno:
-                self.mesa_juego.determinar_turno_robar()
-                self.mesa_juego.crear_botones_no_turno(self.mesa_juego.mesa)
-
-    def _handle_actualizacion_decartar_carta(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
-            self.mesa_juego.elementos_mesa["cantidad_manos_jugadores"] = mensaje.get("cantidad_manos_jugadores")
-            self.mesa_juego.elementos_mesa["dato_carta_descarte"] = mensaje.get("dato_carta_descarte")
-            self.mesa_juego.cargar_dato_carta_descarte()
-            self.mesa_juego.cargar_elemento_carta_descarte()
-            self.mesa_juego.actualizar_carta_descarte(self.mesa_juego.mesa)
-            self.mesa_juego.actualizar_manos_jugadores(self.mesa_juego.mesa)
-
-    def _handle_rechazar_descarte(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
-            if mensaje.get("turno_robar") == False:
-                self.mesa_juego.actualizar_estado_mano(accion="esperar_robar")
-
-    def _handle_no_descartar(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
-            turno_robar = mensaje.get("turno_robar")
-            self.mesa_juego.elementos_mesa["turno_robar"] = turno_robar
-            self.mesa_juego.turno_robar = turno_robar
-            if not turno_robar:
-                self.mesa_juego.actualizar_estado_mano(accion="desactivar_boton")
-            else:
-                self.mesa_juego.actualizar_estado_mano(accion="robar")
-
-    def _handle_comprar(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
-            self.mesa_juego.procesar_comprar(self.mesa_juego.mesa, mensaje.get("carta_extra"))
-            self.mesa_juego.actualizar_estado_mano(accion="desactivar_boton")
-
-    def _handle_compra_realizada(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
+        elif mensaje["type"] == "Reactivar_Botones_No_Turno":
+            # Ya no es su carta, puede tener botones nuevamente
+            self.descarto_recientemente = False
+            # Recrear botones del jugador que descartó (ya no es su carta, y no es su turno)
+            if self.mesa_juego:
+                if not self.mesa_juego.tu_turno:
+                    # Actualizar turno_robar antes de crear los botones
+                    self.mesa_juego.determinar_turno_robar()
+                    # Los botones se crearán desactivados si no tiene turno_robar
+                    self.mesa_juego.crear_botones_no_turno(self.mesa_juego.mesa)
+        elif mensaje["type"] == "Actualizacion_Decartar_Carta":
+            print(mensaje)
+            if self.mesa_juego:
+                self.mesa_juego.elementos_mesa["cantidad_manos_jugadores"] = mensaje.get("cantidad_manos_jugadores")
+                self.mesa_juego.elementos_mesa["dato_carta_descarte"] = mensaje.get("dato_carta_descarte")
+                self.mesa_juego.cargar_dato_carta_descarte()
+                self.mesa_juego.cargar_elemento_carta_descarte()
+                self.mesa_juego.actualizar_carta_descarte(self.mesa_juego.mesa)
+                self.mesa_juego.actualizar_manos_jugadores(self.mesa_juego.mesa)
+        elif mensaje["type"] == "Rechazar_descarte":
+            if self.mesa_juego:
+                if mensaje.get("turno_robar") == False:
+                    self.mesa_juego.actualizar_estado_mano(accion="esperar_robar")
+        elif mensaje["type"] == "No_descartar":
+            print(mensaje)
+            if self.mesa_juego:
+                self.mesa_juego.elementos_mesa["turno_robar"] = mensaje.get("turno_robar")
+                self.mesa_juego.turno_robar = mensaje.get("turno_robar")
+                if mensaje.get("turno_robar") == False:
+                    self.mesa_juego.actualizar_estado_mano(accion="desactivar_boton")
+                else:
+                    self.mesa_juego.actualizar_estado_mano(accion="robar")
+        elif mensaje["type"] == "comprar":
+            print(mensaje)
+            self.mesa_juego.procesar_comprar(self.mesa_juego.mesa,mensaje.get("carta_extra"))
+            self.mesa_juego.actualizar_estado_mano(accion="desactivar_boton")                       
+            print(mensaje.get("carta_extra"))
+            print("XD")
+        elif mensaje["type"] == "Compra_realizada":
             self.mesa_juego.actualizar_estado_mano(accion="activar_mano")
             self.mesa_juego.actualizar_estado_mano(accion="activar_boton")
             self.mesa_juego.accion_tomar_mazo()
-
-    def _handle_actualizar_botones(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
-            if mensaje.get("dato_carta_descarte") is None:
-                self.descarto_recientemente = False
-            self.mesa_juego.elementos_mesa["turno_robar"] = mensaje.get("turno_robar")
-            self.mesa_juego.elementos_mesa["cantidad_cartas_quema"] = mensaje.get("cantidad_cartas_quema")
-            self.mesa_juego.elementos_mesa["dato_carta_descarte"] = None
-            self.mesa_juego.elementos_mesa["dato_carta_quema"] = mensaje.get("dato_carta_quema")
-
-            if self.mesa_juego.elementos_mesa["turno_robar"]:
-                self.mesa_juego.actualizar_estado_mano(accion="activar_mano")
-            else:
-                self.mesa_juego.actualizar_estado_mano(accion="desactivar_boton")
-
-            self.mesa_juego.actualizar_botones()
-            self.mesa_juego.actualizar_carta_quema(self.mesa_juego.mesa)
-            self.mesa_juego.actualizar_mazo_quema()
-            self.mesa_juego.cargar_dato_carta_descarte()
-            self.mesa_juego.cargar_elemento_carta_descarte()
-            self.mesa_juego.actualizar_carta_descarte(self.mesa_juego.mesa)
-            self.mesa_juego.accion_tomar_mazo()
-
-    def _handle_tomar_carta_mazo(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
-            self.mesa_juego.procesar_tomar_mazo(self.mesa_juego.mesa, mensaje.get("carta_extra"))
+        elif mensaje["type"] == "Actualizar_botones":
+            print(mensaje)
+            if self.mesa_juego:
+                # Si se quema la carta (dato_carta_descarte es None), resetear la variable
+                if mensaje.get("dato_carta_descarte") is None:
+                    self.descarto_recientemente = False
+                self.mesa_juego.elementos_mesa["turno_robar"] = mensaje.get("turno_robar")
+                self.mesa_juego.elementos_mesa["cantidad_cartas_quema"] = mensaje.get("cantidad_cartas_quema")
+                self.mesa_juego.elementos_mesa["dato_carta_descarte"] = None
+                self.mesa_juego.elementos_mesa["dato_carta_quema"] = mensaje.get("dato_carta_quema")
+                if self.mesa_juego.elementos_mesa["turno_robar"] == True:
+                    self.mesa_juego.actualizar_estado_mano(accion="activar_mano")
+                else:
+                    self.mesa_juego.actualizar_estado_mano(accion="desactivar_boton")      
+                self.mesa_juego.actualizar_botones()
+                self.mesa_juego.actualizar_carta_quema(self.mesa_juego.mesa)
+                self.mesa_juego.actualizar_mazo_quema()
+                self.mesa_juego.cargar_dato_carta_descarte()
+                self.mesa_juego.cargar_elemento_carta_descarte()
+                self.mesa_juego.actualizar_carta_descarte(self.mesa_juego.mesa)
+                self.mesa_juego.accion_tomar_mazo()
+        elif mensaje["type"] == "Tomar_carta_mazo":
+            print(mensaje)
+            self.mesa_juego.procesar_tomar_mazo(self.mesa_juego.mesa,mensaje.get("carta_extra"))
             self.mesa_juego.elementos_mesa["cantidad_manos_jugadores"] = mensaje.get("cantidad_manos_jugadores")
             self.mesa_juego.actualizar_mazo(self.mesa_juego.mesa)
-
-    def _handle_pasar_turno(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
+        elif mensaje["type"] == "Pasar_Turno":
             self.mesa_juego.elementos_mesa["jugador_mano"] = mensaje.get("jugador_mano")
             self.mesa_juego.elementos_mesa["cantidad_manos_jugadores"] = mensaje.get("cantidad_manos_jugadores")
             self.mesa_juego.elementos_mesa["turno_robar"] = mensaje.get("turno_robar")
             self.mesa_juego.actualizar_manos_jugadores(self.mesa_juego.mesa)
             self.mesa_juego.limpiar_botones(self.mesa_juego.mesa)
+            # Solo crear botones si el jugador NO descartó recientemente
             if not self.descarto_recientemente:
                 self.mesa_juego.crear_botones_no_turno(self.mesa_juego.mesa)
             self.mesa_juego.actualizar_estado_mano(accion="desactivar_boton")
-
-    def _handle_tu_turno(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
+        elif mensaje["type"] == "Tu_Turno":
             self.mesa_juego.elementos_mesa["jugador_mano"] = mensaje.get("jugador_mano")
             self.mesa_juego.elementos_mesa["cantidad_manos_jugadores"] = mensaje.get("cantidad_manos_jugadores")
             self.mesa_juego.actualizar_manos_jugadores(self.mesa_juego.mesa)
             self.mesa_juego.limpiar_botones(self.mesa_juego.mesa)
             self.mesa_juego.crear_botones_inicio_turno(self.mesa_juego.mesa)
             self.mesa_juego.actualizar_estado_mano(accion="activar_mano")
-
-    def _handle_actualizar_etiqueta_turno(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
+        elif mensaje["type"] == "Actualizar_Etiqueta_Turno":
             self.mesa_juego.elementos_mesa["jugador_mano"] = mensaje.get("jugador_mano")
             self.mesa_juego.elementos_mesa["cantidad_manos_jugadores"] = mensaje.get("cantidad_manos_jugadores")
             self.mesa_juego.elementos_mesa["turno_robar"] = mensaje.get("turno_robar")
             self.mesa_juego.actualizar_indicador_turno()
             self.mesa_juego.actualizar_elementos_jugadores()
-            self.mesa_juego.determinar_turno()
-            if not self.mesa_juego.tu_turno and not getattr(self, 'descarto_recientemente', False):
-                self.mesa_juego.limpiar_botones(self.mesa_juego.mesa)
-                self.mesa_juego.crear_botones_no_turno(self.mesa_juego.mesa)
-
-    def _handle_quema_del_mono(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
+            # Si no es el turno del jugador y no descartó recientemente, crear botones
+            if self.mesa_juego:
+                self.mesa_juego.determinar_turno()
+                if not self.mesa_juego.tu_turno and not self.descarto_recientemente:
+                    # Asegurarse de que los botones estén limpios antes de crear nuevos
+                    self.mesa_juego.limpiar_botones(self.mesa_juego.mesa)
+                    self.mesa_juego.crear_botones_no_turno(self.mesa_juego.mesa)
+        elif mensaje["type"] == "quema_del_mono":
+            print(mensaje)
             self.mesa_juego.crear_botones_quema_mono(self.mesa_juego.mesa)
             self.mesa_juego.actualizar_estado_mano(accion="activar_mano")
-
-    def _handle_actualizar_quema_descarte(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
+        elif mensaje["type"] == "Actualizar_quema_descarte":
+            print(mensaje)
             self.mesa_juego.elementos_mesa["cantidad_cartas_quema"] = mensaje.get("cantidad_cartas_quema")
             self.mesa_juego.elementos_mesa["dato_carta_descarte"] = None
-            self.mesa_juego.actualizar_mazo_quema()
+            self.mesa_juego.actualizar_mazo_quema()      
             self.mesa_juego.cargar_dato_carta_descarte()
             self.mesa_juego.cargar_elemento_carta_descarte()
-            self.mesa_juego.actualizar_carta_descarte(self.mesa_juego.mesa)
-
-    def _handle_descartar_mono(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
+            self.mesa_juego.actualizar_carta_descarte(self.mesa_juego.mesa)            
+        elif mensaje["type"] == "descartar_mono":
             self.mesa_juego.elementos_mesa["dato_carta_quema"] = mensaje.get("dato_carta_quema")
             self.mesa_juego.actualizar_carta_quema(self.mesa_juego.mesa)
             self.mesa_juego.finalizar_turno(self.mesa_juego.mesa)
+            
 
-    def _handle_actualizar_mono(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
+        elif mensaje["type"] == "actualizar_mono":
             self.mesa_juego.elementos_mesa["cantidad_manos_jugadores"] = mensaje.get("cantidad_manos_jugadores")
             self.mesa_juego.elementos_mesa["dato_carta_descarte"] = mensaje.get("dato_carta_descarte")
             self.mesa_juego.elementos_mesa["dato_carta_quema"] = mensaje.get("dato_carta_quema")
@@ -313,260 +296,287 @@ class ClienteMixin:
             self.mesa_juego.cargar_elemento_carta_descarte()
             self.mesa_juego.actualizar_carta_descarte(self.mesa_juego.mesa)
             self.mesa_juego.actualizar_manos_jugadores(self.mesa_juego.mesa)
-
-    def _handle_validacion_trio(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
+        elif mensaje["type"] == "validacion_trio":
             self.mesa_juego.seleccionar_seguidilla(self.mesa_juego.mesa)
-
-    def _handle_validacion_trio_fallida(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
+        elif mensaje["type"] == "validacion_trio_fallida":
             self.mesa_juego.alerta_trio_invalido(self.mesa_juego.mesa)
             self.mesa_juego.restaurar_comportamiento_mi_mano()
             self.mesa_juego.modificar_comportamiento_mi_mano()
-
-    def _handle_validacion_seguidilla(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
+        elif mensaje["type"] == "validacion_seguidilla":
+            print(mensaje)
+            print("validacion aceptada")
             self.mesa_juego.elementos_mesa["datos_mano_jugador"] = mensaje.get("datos_mano_jugador")
             self.mesa_juego.elementos_mesa["jugada"] = mensaje.get("jugada")
             self.mesa_juego.elementos_mesa["jugadas_jugadores"] = mensaje.get("jugadas_jugadores")
             self.mesa_juego.cargar_datos_mano_jugador()
             self.mesa_juego.cargar_elemento_mi_mano()
-            self.mesa_juego.actualizar_mano_visual(self.mesa_juego.mesa, accion="reorganizar_todo")
+            self.mesa_juego.actualizar_mano_visual(self.mesa_juego.mesa,accion="reorganizar_todo")
             self.mesa_juego.actualizar_jugadas(self.mesa_juego.mesa)
             self.mesa_juego.crear_botones_jugar_descartar(self.mesa_juego.mesa)
-
-    def _handle_validacion_seguidilla_fallida(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
+        elif mensaje["type"] == "validacion_seguidilla_fallida":
             self.mesa_juego.alerta_seguidilla_invalida(self.mesa_juego.mesa)
             self.mesa_juego.restaurar_comportamiento_mi_mano()
             self.mesa_juego.modificar_comportamiento_mi_mano()
-
-    def _handle_seleccion_valida(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
-            if mensaje.get("actualizar") == True:
+        elif mensaje["type"] == "seleccion_valida":
+            print(mensaje)
+            if mensaje["actualizar"] == True:
                 self.mesa_juego.crear_botones_seleccionar_jugada(self.mesa_juego.mesa)
-
-    def _handle_validacion_bajarse(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
+        elif mensaje["type"] == "validacion_bajarse":
+            print("validacion aceptada")
             self.mesa_juego.elementos_mesa["datos_mano_jugador"] = mensaje.get("datos_mano_jugador")
             self.mesa_juego.elementos_mesa["jugada"] = mensaje.get("jugada")
             self.mesa_juego.elementos_mesa["jugadas_jugadores"] = mensaje.get("jugadas_jugadores")
             self.mesa_juego.cargar_datos_mano_jugador()
             self.mesa_juego.cargar_elemento_mi_mano()
-            self.mesa_juego.actualizar_mano_visual(self.mesa_juego.mesa, accion="reorganizar_todo")
+            self.mesa_juego.actualizar_mano_visual(self.mesa_juego.mesa,accion="reorganizar_todo")
             self.mesa_juego.modificar_comportamiento_mi_mano()
             self.mesa_juego.actualizar_jugadas(self.mesa_juego.mesa)
-
-    def _handle_se_bajo_alguien(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
+        elif mensaje["type"] == "se_bajo_alguien":
             self.mesa_juego.elementos_mesa["cantidad_manos_jugadores"] = mensaje.get("cantidad_manos_jugadores")
             self.mesa_juego.elementos_mesa["jugadas_jugadores"] = mensaje.get("jugadas_jugadores")
             self.mesa_juego.actualizar_jugadas(self.mesa_juego.mesa)
             self.mesa_juego.actualizar_manos_jugadores(self.mesa_juego.mesa)
-
-    def _handle_fin_ronda_puntuaciones(self, mensaje):
-        resultados = mensaje.get("resultados", [])
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
-            for res in resultados:
-                nro = res.get("id")
-                mano = res.get("mano", [])
-                puntos_partida = res.get("puntos_partida")
-                puntos_acumulados = res.get("puntos_acumulados")
-                mano_objs = []
-                for c in mano:
-                    try:
-                        carta_obj = Carta(numero=c.get("numero"), figura=c.get("figura"))
-                        mano_objs.append(carta_obj)
-                    except Exception:
-                        continue
-                if puntos_acumulados is not None:
-                    try:
-                        self.mesa_juego.aplicar_puntuacion_servidor(nro, puntos_partida, puntos_acumulados, mano_objs)
-                    except Exception:
-                        self.mesa_juego.actualizar_puntos_jugador(nro, mano_objs)
-                else:
-                    self.mesa_juego.actualizar_puntos_jugador(nro, mano_objs)
-
-            siguiente = mensaje.get("siguiente_ronda")
-            try:
-                self.mesa_juego.elementos_mesa["jugada"] = []
-                self.mesa_juego.elementos_mesa["jugadas_jugadores"] = []
-                try:
-                    self.mesa_juego.jugada = []
-                except:
-                    pass
-                try:
-                    self.mesa_juego.jugadas_jugadores = {}
-                except:
-                    pass
-                try:
-                    ref = self.mesa_juego.referencia_elementos
-                    if isinstance(ref.get("elementos_jugadas_jugadores"), list): ref[
-                        "elementos_jugadas_jugadores"].clear()
-                    if isinstance(ref.get("elementos_mi_jugada"), list): ref["elementos_mi_jugada"].clear()
-                except:
-                    pass
-                try:
-                    if hasattr(self.mesa_juego, 'actualizar_jugadas') and self.mesa_juego.mesa:
-                        self.mesa_juego.actualizar_jugadas(self.mesa_juego.mesa)
-                except:
-                    pass
-            except Exception as e:
-                print(f"Error limpiando jugadas locales tras fin de ronda: {e}")
-
-            if siguiente is not None:
-                try:
-                    self.mesa_juego.elementos_mesa["nro_ronda"] = siguiente
-                    ronda_finalizada = siguiente - 1 if siguiente > 1 else 4
-                    texto = f"Ronda {ronda_finalizada} Finalizada"
-                    if hasattr(self.mesa_juego, 'mesa') and self.mesa_juego.mesa:
-                        cartel = self.mesa_juego.crear_cartel_alerta(self.mesa_juego.mesa, texto, ancho=500,
-                                                                     mostrar_boton_cerrar=False)
-                        cartel.mostrar()
+        elif mensaje["type"] == "Fin_Ronda_Puntuaciones":
+            print("Fin_Ronda_Puntuaciones recibido:", mensaje)
+            resultados = mensaje.get("resultados", [])
+            if self.mesa_juego:
+                for res in resultados:
+                    nro = res.get("id")
+                    mano = res.get("mano", [])
+                    puntos_partida = res.get("puntos_partida")
+                    puntos_acumulados = res.get("puntos_acumulados")
+                    mano_objs = []
+                    for c in mano:
                         try:
-                            threading.Timer(2.0, lambda: cartel.ocultar()).start()
-                        except:
-                            pass
-                except Exception as e:
-                    print(f"Error procesando cambio de ronda: {e}")
-
-    def _handle_fin_partida_ganador(self, mensaje):
-        nombre = mensaje.get("nombre_ganador", "")
-        texto = f"PARTIDA FINALIZADA!\nEl ganador es {nombre}"
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
-            try:
-                cartel = self.mesa_juego.crear_cartel_alerta(self.mesa_juego.mesa, texto, ancho=700,
-                                                             mostrar_boton_cerrar=False)
-                cartel.mostrar()
-
+                            carta_obj = Carta(numero=c.get("numero"), figura=c.get("figura"))
+                        except Exception:
+                            continue
+                        mano_objs.append(carta_obj)
+                    if puntos_acumulados is not None:
+                        try:
+                            self.mesa_juego.aplicar_puntuacion_servidor(nro, puntos_partida, puntos_acumulados, mano_objs)
+                        except Exception:
+                            self.mesa_juego.actualizar_puntos_jugador(nro, mano_objs)
+                    else:
+                        self.mesa_juego.actualizar_puntos_jugador(nro, mano_objs)
+                siguiente = mensaje.get("siguiente_ronda")
                 try:
-                    self.mesa_juego.limpiar_botones(self.mesa_juego.mesa)
-                except:
-                    pass
-                try:
-                    self.mesa_juego.actualizar_estado_mano(accion="desactivar_boton")
-                except:
-                    pass
-                try:
-                    self.mesa_juego.actualizar_estado_mano(accion="desactivar_mano")
-                except:
-                    pass
-
-                if not hasattr(self.mesa_juego, 'overlays'): self.mesa_juego.overlays = []
-                if not hasattr(self.mesa_juego, 'botones'): self.mesa_juego.botones = []
-
-                ancho_b, alto_b = 300, 60
-                cartel.centrar_en_pantalla()
-                x_b = int(cartel.x + (cartel.ancho - ancho_b) // 2)
-                y_b = int(cartel.y + cartel.alto - alto_b - 20)
-
-                def accion_volver():
+                    self.mesa_juego.elementos_mesa["jugada"] = []
+                    self.mesa_juego.elementos_mesa["jugadas_jugadores"] = []
                     try:
-                        self.mesa_juego.salir_partida()
-                    except:
+                        self.mesa_juego.jugada = []
+                    except Exception:
+                        pass
+                    try:
+                        self.mesa_juego.jugadas_jugadores = {}
+                    except Exception:
+                        pass
+                    try:
+                        ref = self.mesa_juego.referencia_elementos
+                        if isinstance(ref.get("elementos_jugadas_jugadores"), list):
+                            ref["elementos_jugadas_jugadores"].clear()
+                        if isinstance(ref.get("elementos_mi_jugada"), list):
+                            ref["elementos_mi_jugada"].clear()
+                    except Exception:
+                        pass
+                    try:
+                        if hasattr(self.mesa_juego, 'actualizar_jugadas') and self.mesa_juego.mesa:
+                            self.mesa_juego.actualizar_jugadas(self.mesa_juego.mesa)
+                    except Exception:
+                        pass
+                except Exception as e:
+                    print(f"Error limpiando jugadas locales tras fin de ronda: {e}")
+                if siguiente is not None:
+                    try:
+                        self.mesa_juego.elementos_mesa["nro_ronda"] = siguiente
+                        try:
+                            ronda_finalizada = siguiente - 1 if siguiente > 1 else 4
+                            texto = f"Ronda {ronda_finalizada} Finalizada"
+                            if hasattr(self.mesa_juego, 'mesa') and self.mesa_juego.mesa:
+                                try:
+                                    cartel = self.mesa_juego.crear_cartel_alerta(self.mesa_juego.mesa, texto, ancho=500, mostrar_boton_cerrar=False)
+                                    cartel.mostrar()
+                                    try:
+                                        threading.Timer(2.0, lambda: cartel.ocultar()).start()
+                                    except Exception:
+                                        pass
+                                except Exception:
+                                    print(texto)
+                        except Exception as e:
+                            print(f"Error mostrando cartel fin de ronda: {e}")
+                    except Exception as e:
+                        print(f"Error procesando cambio de ronda: {e}")
+        elif mensaje.get("type") == "Fin_Partida_Ganador":
+            print("Fin_Partida_Ganador recibido:", mensaje)
+            nombre = mensaje.get("nombre_ganador", "")
+            texto = f"PARTIDA FINALIZADA!\nEl ganador es {nombre}"
+            if self.mesa_juego:
+                try:
+                    cartel = self.mesa_juego.crear_cartel_alerta(self.mesa_juego.mesa, texto, ancho=700, mostrar_boton_cerrar=False)
+                    cartel.mostrar()
+
+                    # Ocultar/Desactivar botones de juego y la mano del jugador
+                    try:
+                        self.mesa_juego.limpiar_botones(self.mesa_juego.mesa)
+                    except Exception:
+                        pass
+                    try:
+                        self.mesa_juego.actualizar_estado_mano(accion="desactivar_boton")
+                    except Exception:
+                        pass
+                    try:
+                        self.mesa_juego.actualizar_estado_mano(accion="desactivar_mano")
+                    except Exception:
                         pass
 
-                boton = Boton(
-                    un_juego=self.mesa_juego.un_juego, texto="VOLVER AL MENÚ",
-                    ancho=ancho_b, alto=alto_b, x=x_b, y=y_b,
-                    tamaño_fuente=constantes.F_PEQUENA, fuente=constantes.FUENTE_ESTANDAR,
-                    color=constantes.ELEMENTO_FONDO_PRINCIPAL, radio_borde=constantes.REDONDEO_NORMAL,
-                    color_texto=constantes.COLOR_TEXTO_PRINCIPAL, color_borde=constantes.ELEMENTO_BORDE_SECUNDARIO,
-                    grosor_borde=constantes.BORDE_INTERMEDIO, color_borde_hover=constantes.ELEMENTO_HOVER_PRINCIPAL,
-                    color_borde_clicado=constantes.ELEMENTO_CLICADO_PRINCIPAL, grupo=[],
-                    valor="volver_menu", accion=accion_volver
-                )
-                boton.visible = True
+                    try:
+                        # Asegurar que overlays y botones existen
+                        if not hasattr(self.mesa_juego, 'overlays'):
+                            self.mesa_juego.overlays = []
+                        if not hasattr(self.mesa_juego, 'botones'):
+                            self.mesa_juego.botones = []
 
-                target_menu = None
-                if hasattr(self.mesa_juego, 'menus_activos') and self.mesa_juego.menus_activos:
-                    target_menu = self.mesa_juego.menus_activos[-1]
-                if target_menu is None:
-                    target_menu = self.mesa_juego.mesa if hasattr(self.mesa_juego, 'mesa') else None
+                        ancho_b = 300
+                        alto_b = 60
+                        # Asegurar que el cartel ya está centrado
+                        cartel.centrar_en_pantalla()
+                        x_b = int(cartel.x + (cartel.ancho - ancho_b) // 2)
+                        y_b = int(cartel.y + cartel.alto - alto_b - 20)
 
-                if target_menu is not None:
-                    if not hasattr(target_menu, 'overlays'): target_menu.overlays = []
-                    if not hasattr(target_menu, 'botones'): target_menu.botones = []
-                    if boton not in target_menu.overlays: target_menu.overlays.append(boton)
-                    if boton not in target_menu.botones: target_menu.botones.append(boton)
-                else:
-                    if boton not in self.mesa_juego.overlays: self.mesa_juego.overlays.append(boton)
-                    if boton not in self.mesa_juego.botones: self.mesa_juego.botones.append(boton)
+                        def accion_volver():
+                            try:
+                                self.mesa_juego.salir_partida()
+                            except Exception:
+                                pass
 
-                self.mesa_juego.boton_volver = boton
-            except Exception as e:
-                print(f"Error creando boton volver al menu: {e}")
+                        boton = Boton(
+                            un_juego=self.mesa_juego.un_juego,
+                            texto="VOLVER AL MENÚ",
+                            ancho=ancho_b,
+                            alto=alto_b,
+                            x=x_b,
+                            y=y_b,
+                            tamaño_fuente=constantes.F_PEQUENA,
+                            fuente=constantes.FUENTE_ESTANDAR,
+                            color=constantes.ELEMENTO_FONDO_PRINCIPAL,
+                            radio_borde=constantes.REDONDEO_NORMAL,
+                            color_texto=constantes.COLOR_TEXTO_PRINCIPAL,
+                            color_borde=constantes.ELEMENTO_BORDE_SECUNDARIO,
+                            grosor_borde=constantes.BORDE_INTERMEDIO,
+                            color_borde_hover=constantes.ELEMENTO_HOVER_PRINCIPAL,
+                            color_borde_clicado=constantes.ELEMENTO_CLICADO_PRINCIPAL,
+                            grupo=[],
+                            valor="volver_menu",
+                            accion=accion_volver
+                        )
 
-    def _handle_mazo_nuevo(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
+                        # Asegurar visibilidad y agregar tanto a overlays como a botones
+                        boton.visible = True
+                        # Si hay menus activos en la mesa, anexar al último menu activo (se dibuja encima)
+                        target_menu = None
+                        try:
+                            if hasattr(self.mesa_juego, 'menus_activos') and self.mesa_juego.menus_activos:
+                                target_menu = self.mesa_juego.menus_activos[-1]
+                        except Exception:
+                            target_menu = None
+                        if target_menu is None:
+                            target_menu = self.mesa_juego.mesa if hasattr(self.mesa_juego, 'mesa') else None
+
+                        if target_menu is not None:
+                            if not hasattr(target_menu, 'overlays'):
+                                target_menu.overlays = []
+                            if not hasattr(target_menu, 'botones'):
+                                target_menu.botones = []
+                            if boton not in target_menu.overlays:
+                                target_menu.overlays.append(boton)
+                            if boton not in target_menu.botones:
+                                target_menu.botones.append(boton)
+                        else:
+                            # Fallback: anexar a la mesa_juego directamente
+                            if boton not in self.mesa_juego.overlays:
+                                self.mesa_juego.overlays.append(boton)
+                            if boton not in self.mesa_juego.botones:
+                                self.mesa_juego.botones.append(boton)
+
+                        # Guardar referencia al boton de volver sin ponerlo en botones_accion
+                        try:
+                            self.mesa_juego.boton_volver = boton
+                        except Exception:
+                            pass
+                    except Exception as e:
+                        print(f"Error creando boton volver al menu: {e}")
+                    except Exception:
+                        pass
+                except Exception:
+                    print(texto)
+        elif mensaje["type"] == "Mazo_Nuevo":
+            print("Mazo nuevo recibido")
+            print(mensaje)
             self.mesa_juego.elementos_mesa["cantidad_cartas_mazo"] = mensaje.get("cantidad_cartas_mazo")
             self.mesa_juego.actualizar_mazo(self.mesa_juego.mesa)
-            if mensaje.get("cantidad_cartas_quema") is None:
+            if mensaje["cantidad_cartas_quema"] == None and mensaje["direccion"] == None:
                 self.mesa_juego.elementos_mesa["dato_carta_quema"] = None
                 self.mesa_juego.carta_quema = None
                 self.mesa_juego.elementos_mesa["cantidad_cartas_quema"] = 0
                 self.mesa_juego.actualizar_carta_quema(self.mesa_juego.mesa)
                 self.mesa_juego.borrar_mazo_quema()
 
-    def _handle_validacion_extender(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
+            elif mensaje["cantidad_cartas_quema"] == None and mensaje["direccion"] != None:
+                self.mesa_juego.elementos_mesa["dato_carta_quema"] = None
+                self.mesa_juego.carta_quema = None
+                self.mesa_juego.elementos_mesa["cantidad_cartas_quema"] = 0
+                self.mesa_juego.actualizar_carta_quema(self.mesa_juego.mesa)
+                self.mesa_juego.borrar_mazo_quema()
+        elif mensaje["type"] == "validacion_extender":
+            print(mensaje)
             self.mesa_juego.elementos_mesa["datos_mano_jugador"] = mensaje.get("datos_mano_jugador")
             self.mesa_juego.elementos_mesa["jugada"] = mensaje.get("jugada")
             self.mesa_juego.elementos_mesa["jugadas_jugadores"] = mensaje.get("jugadas_jugadores")
             self.mesa_juego.cargar_datos_mano_jugador()
             self.mesa_juego.cargar_elemento_mi_mano()
-            self.mesa_juego.actualizar_mano_visual(self.mesa_juego.mesa, accion="reorganizar_todo")
+            self.mesa_juego.actualizar_mano_visual(self.mesa_juego.mesa,accion="reorganizar_todo")
             self.mesa_juego.actualizar_jugadas(self.mesa_juego.mesa)
             for boton in list(self.mesa_juego.botones_accion.values()):
                 if boton in self.mesa_juego.mesa.botones:
                     boton.accion == self.mesa_juego.crear_botones_despues_de_bajarse(self.mesa_juego.mesa)
-                    self.mesa_juego.crear_botones_extender_jug(self.mesa_juego.mesa, opc=True)
-
-    def _handle_se_extendio(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
+                    self.mesa_juego.crear_botones_extender_jug(self.mesa_juego.mesa,opc=True)
+        elif mensaje["type"] == "se_extendio":
             self.mesa_juego.elementos_mesa["cantidad_manos_jugadores"] = mensaje.get("cantidad_manos_jugadores")
             self.mesa_juego.elementos_mesa["jugadas_jugadores"] = mensaje.get("jugadas_jugadores")
             self.mesa_juego.actualizar_jugadas(self.mesa_juego.mesa)
             self.mesa_juego.actualizar_manos_jugadores(self.mesa_juego.mesa)
-
-    def _handle_elegir_posicion_seguidilla(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
+        elif mensaje['type'] == 'elegir_posicion_seguidilla':
+            print("El servidor solicita elegir posición para la seguidilla.")
             self.mesa_juego.crear_botones_elegir_posicion_seguidilla(self.mesa_juego.mesa)
-
-    def _handle_elejir_donde_extender(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
-            if mensaje.get("trio_seguidilla"):
-                self.mesa_juego.crear_botones_elegir_donde_extender(self.mesa_juego.mesa,
-                                                                    lug=mensaje.get("posicion_seguidilla"))
-            elif mensaje.get("trio_seguidilla") == False and mensaje.get("seguidilla_seguidilla") == False:
-                ronda = mensaje.get("ronda") if mensaje.get("ronda") == 2 else None
-                self.mesa_juego.crear_botones_elegir_pos_seguidilla(ronda, pos1=mensaje.get("posicion_seguidilla"))
-            elif mensaje.get("seguidilla_seguidilla") == True:
-                self.mesa_juego.crear_botones_elegir_donde_extender(self.mesa_juego.mesa,
-                                                                    lug=mensaje.get("posicion_seguidilla1"),
-                                                                    lug2=mensaje.get("posicion_seguidilla2"),
-                                                                    ronda=mensaje.get("ronda"))
-
-    def _handle_seleccion_cancelada(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
+        elif mensaje["type"] == "elejir_donde_extender":
+            print("El servidor solicita elegir dónde extender la jugada.")
+            if mensaje["trio_seguidilla"]:
+                self.mesa_juego.crear_botones_elegir_donde_extender(self.mesa_juego.mesa,lug = mensaje["posicion_seguidilla"])
+            elif mensaje["trio_seguidilla"] == False and mensaje["seguidilla_seguidilla"] == False:
+                try:
+                    if mensaje["ronda"] == 2:
+                        ronda == mensaje["ronda"] 
+                except:
+                    ronda = None
+                self.mesa_juego.crear_botones_elegir_pos_seguidilla(ronda, pos1 = mensaje["posicion_seguidilla"])    
+            elif mensaje["seguidilla_seguidilla"] == True:
+                self.mesa_juego.crear_botones_elegir_donde_extender(self.mesa_juego.mesa,lug = mensaje["posicion_seguidilla1"],lug2 = mensaje["posicion_seguidilla2"],ronda = mensaje["ronda"])
+        elif mensaje['type'] == 'Seleccion_cancelada':
             self.mesa_juego.crear_botones_seleccionar_jugada(self.mesa_juego.mesa)
             self.mesa_juego.restaurar_comportamiento_mi_mano()
             self.mesa_juego.modificar_comportamiento_mi_mano()
-
-    def _handle_jugada_invalida(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
+        elif mensaje['type'] == 'jugada_invalida':
             self.mesa_juego.crear_botones_seleccionar_jugada(self.mesa_juego.mesa)
             self.mesa_juego.restaurar_comportamiento_mi_mano()
             self.mesa_juego.modificar_comportamiento_mi_mano()
-
-    def _handle_jugada_cancelada(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
+        elif mensaje["type"] == "jugada_cancelada":
+            print(mensaje)
             self.mesa_juego.elementos_mesa["datos_mano_jugador"] = mensaje.get("datos_mano_jugador")
             self.mesa_juego.elementos_mesa["jugada"] = mensaje.get("jugada")
             self.mesa_juego.elementos_mesa["jugadas_jugadores"] = mensaje.get("jugadas_jugadores")
             self.mesa_juego.cargar_datos_mano_jugador()
             self.mesa_juego.cargar_elemento_mi_mano()
-            self.mesa_juego.actualizar_mano_visual(self.mesa_juego.mesa, accion="reorganizar_todo")
+            self.mesa_juego.actualizar_mano_visual(self.mesa_juego.mesa,accion="reorganizar_todo")
             self.mesa_juego.actualizar_jugadas(self.mesa_juego.mesa)
             self.mesa_juego.modificar_comportamiento_mi_mano()
             self.mesa_juego.crear_botones_seleccionar_jugada(self.mesa_juego.mesa)
@@ -574,70 +584,60 @@ class ClienteMixin:
                 if boton in self.mesa_juego.mesa.botones:
                     boton.texto == "DESCARTAR"
                     self.mesa_juego.crear_botones_seleccionar_jugada(self.mesa_juego.mesa)
-
-    def _handle_regresando_menu(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
+        elif mensaje["type"] == "regresando_menu":
+            print("Regresando al menú principal.")
             self.mesa_juego.crear_botones_jugar_descartar(self.mesa_juego.mesa)
-
-    def _handle_mostrar_extender(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
+        elif mensaje["type"] == "mostrar_extender":
             self.mesa_juego.crear_botones_despues_de_bajarse(self.mesa_juego.mesa)
-
-    def _handle_mensaje_seguidillas_continuas(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
+        elif mensaje["type"] == "mensaje_seguidillas_continuas":
+            print(mensaje)
             self.mesa_juego.crear_botones_seleccionar_jugada(self.mesa_juego.mesa)
-
-    def _handle_no_puede_descartar_misma_carta(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
+        elif mensaje["type"] == "No_Puede_Descartar_Misma_Carta":
             self.mesa_juego.alerta_carta_descartar_invalida(self.mesa_juego.mesa)
-
-    def _handle_error_descartar(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
+        elif mensaje["type"] == "Error_Descartar":
             self.mesa_juego.alerta_carta_descartar_invalida(self.mesa_juego.mesa)
-
-    def _handle_no_puede_descartar_joker(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
+        elif mensaje["type"] == "No_Puede_Descartar_Joker":
             self.mesa_juego.alerta_no_puede_descartar_joker(self.mesa_juego.mesa)
-
-    def _handle_reemplazar_valido(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
+        elif mensaje["type"] == "reemplazar_valido":
+            print(mensaje)
             self.mesa_juego.elementos_mesa["datos_mano_jugador"] = mensaje.get("nueva_mano")
             self.mesa_juego.elementos_mesa["jugada"] = mensaje.get("jugada")
             self.mesa_juego.elementos_mesa["jugadas_jugadores"] = mensaje.get("jugadas_jugadores")
             self.mesa_juego.cargar_datos_mano_jugador()
             self.mesa_juego.cargar_elemento_mi_mano()
-            self.mesa_juego.actualizar_mano_visual(self.mesa_juego.mesa, accion="reorganizar_todo")
+            self.mesa_juego.actualizar_mano_visual(self.mesa_juego.mesa,accion="reorganizar_todo")
             self.mesa_juego.actualizar_jugadas(self.mesa_juego.mesa)
             self.mesa_juego.restaurar_comportamiento_mi_mano()
-
-    def _handle_ciert_jugador_compro_carta_del_descarte(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
-            self.mesa_juego.alerta_jugador_compro_carta_del_descarte(self.mesa_juego.mesa,
-                                                                     mensaje.get("jugador_compro"))
-
-    def _handle_reemplazaron_tu_jugada(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
+        elif mensaje["type"] == "Ciert_jugador_compro_carta_del_descarte":
+            self.mesa_juego.alerta_jugador_compro_carta_del_descarte(self.mesa_juego.mesa, mensaje["jugador_compro"])
+        elif mensaje["type"] == "reemplazaron_tu_jugada":
             self.mesa_juego.elementos_mesa["cantidad_manos_jugadores"] = mensaje.get("cantidad_manos_jugadores")
             self.mesa_juego.elementos_mesa["jugadas_jugadores"] = mensaje.get("jugadas_jugadores")
             self.mesa_juego.elementos_mesa["jugada"] = mensaje.get("jugada")
             self.mesa_juego.actualizar_jugadas(self.mesa_juego.mesa)
             self.mesa_juego.actualizar_manos_jugadores(self.mesa_juego.mesa)
-
-    def _handle_extendieron_tu_jugada(self, mensaje):
-        if hasattr(self, 'mesa_juego') and self.mesa_juego:
+        elif mensaje["type"] == "extendieron_tu_jugada":
             self.mesa_juego.elementos_mesa["cantidad_manos_jugadores"] = mensaje.get("cantidad_manos_jugadores")
             self.mesa_juego.elementos_mesa["jugadas_jugadores"] = mensaje.get("jugadas_jugadores")
             self.mesa_juego.elementos_mesa["jugada"] = mensaje.get("jugada")
             self.mesa_juego.actualizar_jugadas(self.mesa_juego.mesa)
             self.mesa_juego.actualizar_manos_jugadores(self.mesa_juego.mesa)
-
-    def _handle_reconectar_partida(self, mensaje):
-        if not hasattr(self, 'mesa_juego') or not self.mesa_juego:
-            self.mesa_juego = mesa_interfaz.Mesa_interfaz(self.un_juego)
-        self.mesa_juego.elementos_mesa["datos_mano_jugador"] = mensaje.get("mano")
-        self.mesa_juego.elementos_mesa["jugada"] = mensaje.get("jugada")
-        self.mesa_juego.elementos_mesa["jugadas_jugadores"] = mensaje.get("jugadas_jugadores")
-        self.mesa_juego.elementos_mesa["cantidad_manos_jugadores"] = mensaje.get("cantidad_manos_jugadores")
+        elif mensaje["type"] == "Reconectar_partida":
+            print(mensaje)
+            if not self.mesa_juego:
+                self.mesa_juego = mesa_interfaz.Mesa_interfaz(self.un_juego)
+            self.mesa_juego.elementos_mesa["datos_mano_jugador"] = mensaje.get("mano")
+            self.mesa_juego.elementos_mesa["jugada"] = mensaje.get("jugada")
+            self.mesa_juego.elementos_mesa["jugadas_jugadores"] = mensaje.get("jugadas_jugadores")
+            self.mesa_juego.elementos_mesa["cantidad_manos_jugadores"] = mensaje.get("cantidad_manos_jugadores")
+            self.mesa_juego.elementos_mesa["cantidad_cartas_mazo"] = mensaje.get("mazo")
+            self.mesa_juego.elementos_mesa["dato_carta_quema"] = mensaje.get("dato_carta_quema")
+            self.mesa_juego.elementos_mesa["dato_carta_descarte"] = mensaje.get("dato_carta_descarte")
+            evento_py = pygame.event.Event(constantes.EVENTO_INICIAR_PARTIDA,un_juego=self.un_juego,mesa=self.mesa_juego,datos=mensaje)
+            pygame.event.post(evento_py)
+            time.sleep(5)
+            if mensaje.get("jugadas_jugadores") or mensaje.get("jugada"):
+                self.mesa_juego.actualizar_jugadas(self.mesa_juego.mesa)
 
             
     def encontrar_ip_servidor(self,un_juego):
