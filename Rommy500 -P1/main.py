@@ -1,24 +1,13 @@
 import pygame
 import sys
-import logging
 from ui import UIManager
 from network import NetworkManager
 from volumen import ControlVolumen
 
-# Configuración global de Logging para la nueva capa de Red
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s [%(name)s] %(levelname)s: %(message)s',
-    handlers=[
-        logging.FileHandler('game.log'),
-        logging.StreamHandler()
-    ]
-)
-
 
 def main():
     pygame.init()
-    
+     
     SCREEN_WIDTH, SCREEN_HEIGHT = 1280, 720
     network_manager = NetworkManager()
     ui_manager = UIManager(SCREEN_WIDTH, SCREEN_HEIGHT, network_manager)
@@ -71,3 +60,6 @@ def main():
 
 if __name__ == "__main__":
     main()
+{
+    
+}

@@ -31,6 +31,9 @@ class NetworkState:
         self.running_broadcast = False
         self.is_host = False
         self.game_started = False
+        self.host_disconnected = False
+        # --- NUEVO: Estado de notificaciones de chat ---
+        self.has_unread_chat = False
         
         # Datos del cliente / servidor local
         self.player_id = None
@@ -46,10 +49,6 @@ class NetworkState:
         self.player = None  # Socket del lado cliente para conexión al Host
         self.server_info_to_reconnect = None
         self.receivedData = None
-        
-        # Mensajes temporales para la UI (avisos de conexión/desconexión)
-        self.mensaje = "" #LOS ATRIBUTOS DEL MENSAJE SE INICIALIZAN AQUÍ PARA QUE LUEGO EL MÁNAGER LOS HEREDE
-        self.tiempoDelMensaje = 0
         
         # Estado de jugadores en partida
         self.connected_players: List[ConnectedPlayer] = []
