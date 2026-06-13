@@ -54,17 +54,17 @@ class PuntosMixin:
         for carta in mano:
             puntos += self.calcular_puntos_carta(carta)
         return puntos
-    
+    #cambio lismar
     def crear_contador_puntos(self, mesa):
-        """Muestra el contador de puntos en la interfaz"""
-        ancho = constantes.ELEMENTO_PEQUENO_ANCHO * 0.35
-        alto = constantes.ELEMENTO_PEQUENO_ALTO * 0.4
+        # Ancho intermedio perfecto: ni muy apretado, ni muy alargado. 
+        # Justo para que soporte hasta 4 dígitos sin salirse del borde.
+        ancho = constantes.ELEMENTO_PEQUENO_ANCHO * 0.52
+        alto = constantes.ELEMENTO_PEQUENO_ALTO * 0.45
         
-        # Posición en esquina superior izquierda
-        x = (constantes.ANCHO_MENU_MESA - ancho) - 100
+        # Ajustamos el eje X para que quede bien posicionado a la derecha
+        x = (constantes.ANCHO_MENU_MESA - ancho) - 80
         y = 10
         
-        # Mostrar puntos acumulados si están disponibles (como en la tabla de puntuación)
         try:
             id_local = self.elementos_mesa.get("id_jugador")
             if id_local is not None:
@@ -76,6 +76,9 @@ class PuntosMixin:
 
         texto_puntos = f"Tus Puntos: {puntos_mostrar}"
         
+        color_vino_oscuro = (65, 25, 30) 
+        color_dorado = (218, 165, 32)     
+        
         contador = Elemento_texto(
             un_juego=self.un_juego,
             texto=texto_puntos,
@@ -83,58 +86,20 @@ class PuntosMixin:
             alto=alto,
             x=x,
             y=y,
-            tamaño_fuente=constantes.F_PEQUENA,
+            tamaño_fuente=21,           # Reducido sutilmente a 21 para que encaje perfecto
             fuente=constantes.FUENTE_ESTANDAR,
-            color=constantes.ELEMENTO_FONDO_PRINCIPAL,
-            radio_borde=constantes.REDONDEO_NORMAL,
-            color_texto=constantes.COLOR_TEXTO_PRINCIPAL,
-            color_borde=constantes.ELEMENTO_BORDE_SECUNDARIO,
-            grosor_borde=constantes.BORDE_INTERMEDIO
+            color=color_vino_oscuro,             
+            radio_borde=9,              
+            color_texto=color_dorado,           
+            color_borde=color_dorado,                
+            grosor_borde=2              
         )
         
         mesa.botones.append(contador)
-        # Guardar referencia para poder actualizarlo posteriormente
         self.referencia_elementos["contador_puntos"] = contador
-        # Reutilizar `CartelAlerta` existente para mensaje temporal (3s)
-        try:
-            # Calcular tamaño y posición razonables para que no salga de pantalla
-            ancho_msg = min(int(constantes.ANCHO_VENTANA * 0.35), max(300, int(ancho * 3)))
-            alto_msg = max(50, int(alto * 1.65))
-
-            # Posicionar en esquina superior derecha (margen 10px)
-            y_msg = 10
-            x_msg = int(constantes.ANCHO_VENTANA) - ancho_msg - 10
-            if x_msg < 10:
-                x_msg = 10
-
-            # Crear cartel reutilizando la clase existente
-            cartel = CartelAlerta(
-                self.un_juego.pantalla,
-                "Mantén TAB para ver la tabla de puntuaciones",
-                x_msg,
-                y_msg,
-                ancho=ancho_msg,
-                alto=alto_msg,
-                mostrar_boton_cerrar=False,
-                duracion_ms=3000
-            )
-            # Ajustar fuente a tamaño más pequeño para que el texto quepa
-            try:
-                cartel.fuente = pygame.font.SysFont(constantes.FUENTE_LLAMATIVA, max(25, int(constantes.F_PEQUENA * 0.7)))
-                cartel.preparar_texto()
-            except Exception:
-                pass
-
-            cartel.tiempo_mostrado = pygame.time.get_ticks()
-            cartel.visible = True
-            if not hasattr(mesa, 'overlays'):
-                mesa.overlays = []
-            mesa.overlays.append(cartel)
-        except Exception:
-            pass
-
+        
         return contador
-
+    
     def crear_menu_puntuacion(self):
         """Crea el menú de puntuación usando la clase Menu"""
         try:

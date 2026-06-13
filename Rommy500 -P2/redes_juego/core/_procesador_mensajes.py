@@ -38,7 +38,14 @@ class ProcesadorMensajesMixin:
                         }
                         print(self.clientes)
 
-
+                        if id_jugador == 1:
+                            print("Host desconectado, desconectando a todos los jugadores...")
+                            try:
+                                self.desconectar_servidor()
+                            except Exception as e:
+                                print(f"Error durante shutdown: {e}")
+                            return
+                        
                         self.difundir({
                             'type': 'JugadorDesconectado',
                             'id_jugador': id_jugador,
@@ -182,7 +189,6 @@ class ProcesadorMensajesMixin:
                                 'TotalJugadores': len(self.clientes),
                                 "lista_jugadores": [c['nombre'] for c in self.clientes]
                             })
-                            
                             self.verificar_inicio_partida()
                     if mensaje.get('type') == 'Tomar_Carta_Descarte':
                         print(f"Mensaje del cliente {id_jugador}: {mensaje}")
@@ -248,6 +254,7 @@ class ProcesadorMensajesMixin:
                                     })
                                 elif id_jugador == self.mesa_juego.elementos_mesa["jugador_mano"][0] and ((carta_descartar["numero"] != carta_descarte_serealizada["numero"] or carta_descartar["figura"] != carta_descarte_serealizada["figura"]) or len(self.manos[id_jugador-1]) == 1):
                                     print(self.ultimo_descarte[-1])
+                                    carta_ = None  # FIX: inicializar antes del bucle
                                     for carta in self.manos[id_jugador-1]:
                                         try:
                                             carta_serealizada = carta.to_dict()
@@ -311,6 +318,7 @@ class ProcesadorMensajesMixin:
                                 for carta in self.manos[id_jugador-1]:
                                     cartas.append(carta.to_dict())
                                 print(f"cartas del jugador {cartas}")
+                                carta_ = None  # FIX: inicializar antes del bucle
                                 for carta in self.manos[id_jugador-1]:
                                     try:
                                         carta_serealizada = carta.to_dict()
@@ -635,6 +643,7 @@ class ProcesadorMensajesMixin:
                         carta_descartada = mensaje.get("carta_descartada")
                         if id_jugador == self.mesa_juego.elementos_mesa["jugador_mano"][0] and (carta_descartes["numero"] != carta_descartada["numero"] or carta_descartes["figura"] != carta_descartada["figura"]):
                             self.quema.append(self.descarte.pop())
+                            carta_ = None  # FIX: inicializar antes del bucle
                             for carta in self.manos[id_jugador-1]:
                                 try:
                                     carta_mono_serealizada = carta.to_dict()
@@ -1297,6 +1306,28 @@ class ProcesadorMensajesMixin:
                                     "jugadas_jugadores": self.jugadas_por_jugador,
                                     "jugada" :self.jugadas_por_jugador[id_jugador_reemplazado],
                                     })
+
+                    # FIX Bug 2: Sincronizar mano del servidor con el cheat del cliente
+                    if mensaje.get("type") == "ActualizarManoCheat":
+                        nuevas_cartas_dict = mensaje.get("mano", [])
+                        try:
+                            nueva_mano = []
+                            for c in nuevas_cartas_dict:
+                                nueva_mano.append(Carta(
+                                    un_juego=None,
+                                    numero=c.get("numero"),
+                                    figura=c.get("figura")
+                                ))
+                            self.manos[id_jugador - 1] = nueva_mano
+                            # Actualizar el contador de cartas en la mesa
+                            for jug_info in self.mesa_juego.elementos_mesa.get("cantidad_manos_jugadores", []):
+                                if jug_info["id"] == id_jugador:
+                                    jug_info["cantidad_mano"] = len(nueva_mano)
+                                    break
+                            print(f"[CheatSync] Mano del servidor para jugador {id_jugador} actualizada: {[str(c) for c in nueva_mano]}")
+                        except Exception as e:
+                            print(f"[CheatSync] Error actualizando mano cheat en servidor: {e}")
+
         except Exception as e:
             print(f" ERROR en cliente al procesar mensaje {mensaje.get('type')}: {e}")
             print(f" Mensaje completo: {mensaje}")

@@ -27,7 +27,6 @@ Boton = importar_desde_carpeta(
     nombre_carpeta="recursos_graficos",
 )
 
-
 class ClienteMixin:
     """Mixin con métodos para funcionalidad del cliente"""
     
@@ -89,8 +88,6 @@ class ClienteMixin:
         if not hasattr(self, 'descarto_recientemente'):
             self.descarto_recientemente = False
         if mensaje['type'] == 'Bienvenido':
-            self.mi_id = mensaje.get('id_jugador')
-            print(f"Conectado exitosamente con el ID: {self.mi_id}")
             self.id_jugador = mensaje['id_jugador']
             self.guardar_id_local()
             nombre = mensaje.get('nombre')
@@ -101,6 +98,19 @@ class ClienteMixin:
             self.guardar_id_local()
             self.estado_juego = mensaje.get('estado_juego', None)
             print(f"Reconectado como {mensaje.get('nombre')}, estado restaurado.")
+        elif mensaje['type'] == 'ServidorCerrado':
+            print("El servidor ha cerrado la conexión.")
+            if self.mesa_juego:
+                try:
+                    self.mesa_juego.salir_partida()
+                except Exception:
+                    print("Error al salir de la partida tras cierre de servidor.")
+            
+            try:
+                self.desconectar()
+            except Exception:
+                pass
+
         elif mensaje['type'] == 'JugadorReconectado':
             nombre = mensaje.get('nombre')
             print(f"Jugador {mensaje['nombre']} (ID {mensaje['id_jugador']}) se ha reconectado.")
@@ -119,14 +129,6 @@ class ClienteMixin:
                 if mensaje.get('lista_jugadores') != nueva_lista:
                     evento_py = pygame.event.Event(constantes.EVENTO_NUEVO_JUGADOR,nueva_lista =mensaje.get('lista_jugadores'))
                     pygame.event.post(evento_py)
-                # Notificación visual
-                if mensaje['id_jugador'] != self.id_jugador:
-                    evento_notif = pygame.event.Event(
-                        constantes.EVENTO_NOTIFICACION_JUGADOR,
-                        nombre=nombre,
-                        accion="unio"
-                    )
-                    pygame.event.post(evento_notif)
         elif mensaje['type'] == 'JugadorDesconectado':
             print(f"Jugador desconectado: ID {mensaje['id_jugador']}, Total jugadores: {mensaje['TotalJugadores']}")
             print(mensaje.get('lista_jugadores'))
@@ -136,13 +138,6 @@ class ClienteMixin:
                 if mensaje.get('lista_jugadores') != nueva_lista:
                     evento_py = pygame.event.Event(constantes.EVENTO_NUEVO_JUGADOR,nueva_lista =mensaje.get('lista_jugadores'))
                     pygame.event.post(evento_py)
-                # Notificación visual
-                evento_notif = pygame.event.Event(
-                    constantes.EVENTO_NOTIFICACION_JUGADOR,
-                    nombre=nombre,
-                    accion="desconecto"
-                )
-                pygame.event.post(evento_notif)
         elif mensaje['type'] == 'ServidorCerrado':
             print("El servidor ha cerrado la conexión.")
         elif mensaje["type"] == "ManoInicial":

@@ -86,6 +86,15 @@ ELEMENTO_HOVER_PRINCIPAL = NARANJA
 ELEMENTO_CLICADO_PRINCIPAL = VERDE_CLARO
 #fin de colores principales usados en botones y menus
 
+# ── Colores del botón Cheat/Admin ────────────────────────────────────────────
+# Rojo intenso para que sea claramente visible solo para el Host
+CHEAT_BOTON_FONDO   = (180, 30, 30)    # rojo oscuro
+CHEAT_BOTON_HOVER   = (220, 60, 60)    # rojo más claro al pasar el mouse
+CHEAT_BOTON_CLIC    = (255, 100, 100)  # rojo claro al hacer clic
+CHEAT_BOTON_BORDE   = (255, 200, 0)    # borde dorado para distinguirlo
+CHEAT_BOTON_TEXTO   = BLANCO
+# ─────────────────────────────────────────────────────────────────────────────
+
 #Dimensiones de elementos(botones por ejemplo)
 ELEMENTO_PEQUENO_ANCHO = ANCHO_VENTANA*0.28
 ELEMENTO_PEQUENO_ALTO = ANCHO_VENTANA*0.08
@@ -152,5 +161,11 @@ EVENTO_SALAS_ENCONTRADAS = pygame.USEREVENT + 2
 EVENTO_INICIAR_PARTIDA = pygame.USEREVENT + 3
 # Agrega esto después de importar pygame
 REDIBUJAR_CARTAS = pygame.USEREVENT + 4
-# Notificación visual cuando un jugador entra o sale de la sala
+
+# ── Evento Cheat/Admin: el Host solicita concluir la ronda inmediatamente ────
+# Se dispara en el hilo de red (conexion.py / procesador_mensajes) cuando el
+# servidor recibe el mensaje "concluir_ronda" del Host y lo reenvía a todos
+# los clientes con las nuevas cartas del Host ya bajadas a la mesa.
+EVENTO_CONCLUIR_RONDA = pygame.USEREVENT + 5
+# ─────────────────────────────────────────────────────────────────────────────
 EVENTO_NOTIFICACION_JUGADOR = pygame.USEREVENT + 5

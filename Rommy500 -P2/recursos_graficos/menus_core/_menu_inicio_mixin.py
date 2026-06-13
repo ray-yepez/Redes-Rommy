@@ -9,6 +9,58 @@ from redes_interfaz import controladores
 
 class MenuInicioMixin:
     """Mixin con métodos para el menú principal de inicio"""
+
+
+    def crear_boton_atras_menu_inicio(self, menu_inicio):
+        """Crea botón atrás para volver a la pantalla inicial del botón JUGAR."""
+
+        ancho = 130
+        alto = 50
+
+        x = 150
+        y = 615
+
+
+
+        accion = lambda: controladores.Mostrar_seccion(
+            self,
+            self.boton_jugar
+        )
+
+        boton_atras = menu_inicio.crear_elemento(
+            x=x,
+            y=y,
+            funcion=True,
+            ancho=ancho,
+            alto=alto,
+            texto=" ",
+            accion=accion,
+            tp_color="s",
+            tp_borde="n"
+        )
+
+        try:
+            ruta_img = importar_desde_carpeta(
+                nombre_archivo="Imagenes/botones/boton_atras.png",
+                nombre_carpeta="assets"
+            )
+
+            img = pygame.image.load(ruta_img).convert_alpha()
+            img = pygame.transform.smoothscale(img, (ancho, alto))
+
+            boton_atras.superficie_texto = img
+            boton_atras.rect_texto = img.get_rect(center=boton_atras.rect.center)
+
+            boton_atras.color_actual = None
+            boton_atras.color = None
+            boton_atras.color_hover = None
+            boton_atras.color_clicado = None
+            boton_atras.grosor_borde = 0
+            boton_atras.color_borde = None
+            boton_atras.color_borde_actual = None
+
+        except Exception as e:
+            print(f"Error cargando boton_atras.png: {e}")
     
     def Menu_inicio(self):
         """Crea el menú principal con 4 botones y el logo
@@ -31,12 +83,15 @@ class MenuInicioMixin:
         )
         
         self.crear_elementos_control_inicio(menu_inicio)
+
+        #boton de regreso a la pantalla del boton jugar
+        self.crear_boton_atras_menu_inicio(menu_inicio)
         
         # Agregar logo
-        escala_logo = 0.7 
+        escala_logo = 0.65
         x_centro = (constantes.ANCHO_MENU_I - self.logo_rummy.get_width()) // 2
         posicion_logo = (
-            x_centro - 100,
+            x_centro - 63,
             int(constantes.ALTO_MENU_I * 0.10)
         )
         

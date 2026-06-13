@@ -15,10 +15,13 @@ class Menu:
         self.imagenes = []
         self.overlays = [] #=====Jesua: Añadido overlay para la alerta de ronda finalizada
         self.visible = False
+        
     def mostrar(self):
         self.visible = True
+
     def ocultar(self):
         self.visible = False
+
     def agregar_imagen(self, imagen, posicion_relativa,scala):
         posicion_absoluta = (
             self.x + posicion_relativa[0],
@@ -29,6 +32,7 @@ class Menu:
         tamano = (w*scala,h*scala)
         imagen = pygame.transform.smoothscale(imagen, tamano)
         self.imagenes.append((imagen, posicion_absoluta))
+
     def crear_elemento(self, Clase=None, x=0,y=0,funcion=False, **kwargs):
         x,y = self.x + x, self.y + y
         kwargs["x"], kwargs["y"] = x,y

@@ -39,7 +39,7 @@ class CargaVisualesMixin:
         self.carta_quema.un_juego = self.un_juego
         self.carta_quema.parte_superior = self._cartas_imagenes.get(f'{self.carta_quema.figura} ({self.carta_quema.numero})')
         self.carta_quema.parte_trasera = self._cartas_imagenes.get('Reverso')
-
+     #cambio lismar
     def cargar_elementos_jugadores(self, mesa, posiciones, ancho_jugador, alto_jugador):
         """Carga los elementos visuales de todos los jugadores"""
         for jugador in self.lista_jugadores_objetos: 
@@ -53,8 +53,15 @@ class CargaVisualesMixin:
             turno = self.elementos_mesa["jugador_mano"][0] == jugador.nro_jugador
             jugador.usuario = jugador.elemento_usuario(True,turno)
             
+            # ─── INYECCIÓN DIRECTA PARA ARREGLAR EL CERO DE ARRANQUE ───
+            for j_data in self.elementos_mesa.get("cantidad_manos_jugadores", []):
+                if str(j_data["id"]) == str(jugador.nro_jugador):
+                    jugador.usuario.cartas = j_data["cantidad_mano"]
+                    break
+            jugador.usuario.puntos = getattr(jugador, 'puntos', 0)
+            # ───────────────────────────────────────────────────────────
+            
             if jugador.nro_jugador != self.elementos_mesa["id_jugador"]:
                 self.referencia_elementos["elemento_jugadores"].append(jugador.usuario)
                 self.jugadores.append(jugador)
                 mesa.botones.append(jugador.usuario)
-
