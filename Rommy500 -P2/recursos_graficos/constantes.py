@@ -152,3 +152,5 @@ EVENTO_SALAS_ENCONTRADAS = pygame.USEREVENT + 2
 EVENTO_INICIAR_PARTIDA = pygame.USEREVENT + 3
 # Agrega esto después de importar pygame
 REDIBUJAR_CARTAS = pygame.USEREVENT + 4
+# Notificación visual cuando un jugador entra o sale de la sala
+EVENTO_NOTIFICACION_JUGADOR = pygame.USEREVENT + 5
