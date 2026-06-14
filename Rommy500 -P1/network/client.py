@@ -58,6 +58,10 @@ class GameClient:
                 # Iniciar el hilo receptor del cliente
                 threading.Thread(target=self._receive_loop, daemon=True).start()
                 
+                #######CAMBIOS PARA EL MENSAJE DE LA SALA################### 
+                self.state.mensaje = f"{self.state.player_name} se ha unido a la sala"
+                self.state.tiempoDelMensaje = time.time()
+                
                 logger.info(f"Conectado como {self.state.player_name} (ID: {self.state.player_id})")
                 return True, "Conectado exitosamente"
             

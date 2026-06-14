@@ -313,3 +313,11 @@ class NetworkManager:
     def clear_chat_notification(self):
         """Llama a este método justo en el evento donde el jugador abre el chat."""
         self.state.has_unread_chat = False
+    
+    @property
+    def mensaje(self):
+        return getattr(self.state, 'mensaje', '')
+
+    @property
+    def tiempoDelMensaje(self):
+        return getattr(self.state, 'tiempoDelMensaje', 0)
