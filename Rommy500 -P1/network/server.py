@@ -225,6 +225,12 @@ class GameServer:
                     except:
                         pass
             return
+        
+        elif msg_type == "SALIR" and player.is_host:
+            # El host está saliendo del juego - desconectar a todos los jugadores
+            logger.info(f"Host {player.name} está saliendo del juego. Desconectando a todos los jugadores...")
+            self._disconnect_all_players()
+            return
 
         else:
             # ── Todas las jugadas del juego ──────────────────────────────────
@@ -243,6 +249,46 @@ class GameServer:
                         logger.debug(f"Retransmitiendo {msg_type} de {player.name} a {p.name}")
                     except Exception as e:
                         logger.warning(f"Error retransmitiendo a {p.name}: {e}")
+    
+    def _disconnect_all_players(self):
+        """Desconecta a todos los jugadores (excluyendo al host) y cierra el servidor."""
+        # Enviar mensaje de desconexión a todos los jugadores
+        disconnect_msg = {
+            "type": "SERVER_SHUTDOWN",
+            "reason": "El host ha abandonado la partida"
+        }
+        
+        # Desconectar a todos los jugadores excepto al host
+        for p in self.state.get_connected_players():
+            if not p.is_host:
+                try:
+                    self.transport.send_atomic(p.conn, disconnect_msg)
+                    p.conn.close()
+                except Exception as e:
+                    logger.warning(f"Error desconectando a {p.name}: {e}")
+        
+        # Limpiar la lista de jugadores (dejar solo al host temporalmente)
+        with self.state._lock_players:
+            self.state.connected_players = [p for p in self.state.connected_players if p.is_host]
+        
+        # Detener el servidor
+        self.stop()
+        
+        # Marcar el estado como desconectado
+        self.state.is_host = False
+        self.state.running = False
+        self.state.game_started = False
+        
+        logger.info("Todos los jugadores han sido desconectados debido a la salida del host")
+    
+    def stop(self):
+        """Detiene el servidor y cierra el socket."""
+        if self.server_socket:
+            try:
+                self.server_socket.close()
+                logger.info("Servidor detenido")
+            except Exception as e:
+                logger.error(f"Error cerrando el socket del servidor: {e}")
     
     def _find_player_by_name(self, name: str):
         """Busca jugador por nombre (usado para reconexiones)."""

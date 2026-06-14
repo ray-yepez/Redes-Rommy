@@ -21,7 +21,7 @@ class MenuBaseMixin:
         y = (constantes.ALTO_VENTANA - alto_elemento) / 2
         return (x, y)
     
-    def boton_generico(self, x=0, y=0, ancho=0, alto=0, texto="", accion=None, tp_color="p", tp_borde="g"):
+    def boton_generico(self, x=0, y=0, ancho=0, alto=0, texto="", accion=None, tp_color="p", tp_borde="g", ruta_imagen_fondo=None, **kwargs):
         """Factory method para crear botones con estilo consistente
         
         Args:
@@ -69,5 +69,7 @@ class MenuBaseMixin:
             grosor_borde=borde,
             color_borde_hover=constantes.ELEMENTO_HOVER_PRINCIPAL,
             color_borde_clicado=constantes.ELEMENTO_CLICADO_PRINCIPAL,
-            accion=accion
+            accion=accion,
+            ruta_imagen_fondo=ruta_imagen_fondo,
+            **kwargs
         )

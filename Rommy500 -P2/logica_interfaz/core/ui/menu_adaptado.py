@@ -12,13 +12,16 @@ class Menu_adaptado(Menu):
         super().__init__(*args, **kwargs)
 
     def dibujar_fondo(self):
-        """Dibuja un rectángulo de fondo más grande que el menú, sin borde, y luego el menú centrado."""
-        rect_fondo = pygame.Rect(
-            0, 0, constantes.ANCHO_VENTANA, constantes.ALTO_VENTANA
-        )
-        pygame.draw.rect(self.pantalla, self.borde_color, rect_fondo, border_radius=0)
-        pygame.draw.rect(self.pantalla, self.fondo_color, self.menu, border_radius=self.redondeo)
-
+        # 1. Dibujar la imagen de madera primero (Capa de abajo)
+        """if hasattr(self.un_juego, 'imagen_fondo_juego') and self.un_juego.imagen_fondo_juego:
+            self.pantalla.blit(self.un_juego.imagen_fondo_juego, (0, 0))
+        p
+        # 2. SOLO dibujar el rectángulo si hay un color definido (Capa de arriba)
+        # Como ahora pasamos None desde crear_mesa, este código se saltará
+        # y por fin verás la imagen de fondo limpia.
+        if self.fondo_color is not None:
+            pygame.draw.rect(self.pantalla, self.fondo_color, self.menu, border_radius=self.redondeo) """""   
+        pass
     def dibujar_botones(self):
         # separar cartas (tienen atributo 'valor' o tipo) del resto
         cartas = [b for b in self.botones if hasattr(b, "valor")]

@@ -71,14 +71,17 @@ def Crear_servidor(un_juego, menu):
         nombre_sala and 
         max_jugadores > 0):
         
-        un_juego.lista_elementos = {
+        un_juego.lista_elementos.update({
             "nombre_creador": nombre_creador_sala,
             "nombre_sala": nombre_sala,
             "cantidad_jugadores": max_jugadores,
-            "ip_sala":"127.0.0.1",
+            "ip_sala": "127.0.0.1",
             "lista_jugadores": [],
-            "nombre_unirse": ""
-        }
+            "nombre_unirse": "",
+            "salas_disponibles": un_juego.lista_elementos.get("salas_disponibles", []),
+            "es_host": True,
+            "origen_espera": "crear_sala"
+        })
         print("holaaa")
         Agregar_jugador(un_juego)
         return True
@@ -280,6 +283,8 @@ def Unirse_a_sala_seleccionada(un_juego, elemento_seleccion_sala):
                 un_juego.detener_musica()
         except Exception:
             pass
+        un_juego.lista_elementos["es_host"] = False
+        un_juego.lista_elementos["origen_espera"] = "unirse_sala"
         Mostrar_seccion(un_juego, un_juego.menu_mesa_espera)
         try:
             if hasattr(un_juego, 'reproducir_musica_espera'):
@@ -308,6 +313,8 @@ def mostrar_menu_mesa_espera(un_juego):
         Valores_crear_sevidor(un_juego, un_juego.menu_nombre_creador)
 
     if Crear_servidor(un_juego, un_juego.menu_nombre_creador):
+        un_juego.lista_elementos["es_host"] = True
+        un_juego.lista_elementos["origen_espera"] = "crear_sala"
     # (re)crear el menú ahora que lista_elementos ya está actualizada
         un_juego.menu_mesa_espera = un_juego.Menu_mesa_espera()
         # Detener música del menú principal si está sonando
@@ -358,14 +365,23 @@ def mostrar_mesa(un_juego,clase_mesa_interfaz,datos):
         un_juego.mesa = mesa.crear_mesa()
         print("DEBUG: Mesa creada por primera vez")
 
-        # ── BOTÓN ORDENAR MANO (NUEVO) ────────────────────────────────────────
-        # Se crea una sola vez, justo después de crear_mesa(), para que el
-        # objeto Menu ya exista y se le pueda agregar el botón correctamente.
+        # ── BOTÓN ORDENAR MANO ────────────────────────────────────────────────
         try:
             clase_mesa_interfaz.crear_boton_ordenar(un_juego.mesa)
             print("DEBUG: Botón de ordenamiento de mano creado")
         except Exception as e:
             print(f"WARN: No se pudo crear el botón de ordenamiento: {e}")
+        # ─────────────────────────────────────────────────────────────────────
+
+        # ── BOTÓN CONCLUIR RONDA (Cheat/Admin) ───────────────────────────────
+        # Solo se crea si el cliente es el Host (id_jugador == 1).
+        # crear_boton_concluir_ronda() evalúa internamente si es host; si no
+        # lo es, simplemente no hace nada → ningún riesgo en llamarlo siempre.
+        try:
+            clase_mesa_interfaz.crear_boton_concluir_ronda(un_juego.mesa)
+            print("DEBUG: Botón 'Concluir Ronda' procesado (host check interno).")
+        except Exception as e:
+            print(f"WARN: No se pudo crear el botón 'Concluir Ronda': {e}")
         # ─────────────────────────────────────────────────────────────────────
 
     else:
@@ -432,6 +448,23 @@ def mostrar_mesa(un_juego,clase_mesa_interfaz,datos):
         except Exception as e:
             print(f"ERROR actualizando mesa existente: {e}")
 
+        # ── BOTÓN ORDENAR MANO (nueva ronda) ─────────────────────────────────
+        try:
+            clase_mesa_interfaz.crear_boton_ordenar(un_juego.mesa)
+            print("DEBUG: Botón de ordenamiento de mano recreado para nueva ronda")
+        except Exception as e:
+            print(f"WARN: No se pudo recrear el botón de ordenamiento: {e}")
+
+        # ── BOTÓN CONCLUIR RONDA (nueva ronda, solo Host) ────────────────────
+        # Se recrea porque manejar_partida() limpia y reconstruye los botones
+        # de la mesa, eliminando el botón anterior.
+        try:
+            clase_mesa_interfaz.crear_boton_concluir_ronda(un_juego.mesa)
+            print("DEBUG: Botón 'Concluir Ronda' re-procesado para nueva ronda.")
+        except Exception as e:
+            print(f"WARN: No se pudo recrear el botón 'Concluir Ronda': {e}")
+        # ─────────────────────────────────────────────────────────────────────
+
     # Mostrar la sección de la mesa (ya sea nueva o actualizada)
     #==========Fin Jesua===========
     # Detener música de menú si la ventana tiene ese control
@@ -440,6 +473,19 @@ def mostrar_mesa(un_juego,clase_mesa_interfaz,datos):
             un_juego.detener_musica()
     except Exception:
         pass
+# Mostrar la sección de la mesa
+    try:
+        clase_mesa_interfaz.determinar_turno()
+
+        if clase_mesa_interfaz.tu_turno:
+            print("ACTIVANDO MANO - es mi turno")
+            clase_mesa_interfaz.actualizar_estado_mano("activar_mano")
+        else:
+            print("DESACTIVANDO MANO - no es mi turno")
+            clase_mesa_interfaz.actualizar_estado_mano("desactivar_mano")
+
+    except Exception as e:
+        print(f"Error actualizando estado de mano por turno: {e}")
 
     Mostrar_seccion(un_juego, un_juego.mesa)
     # Reproducir música de partida al mostrar la mesa
@@ -448,6 +494,82 @@ def mostrar_mesa(un_juego,clase_mesa_interfaz,datos):
             un_juego.reproducir_musica_partida()
     except Exception:
         pass
+
+#cambio lismar, cambio redes que paso maria valeria
+"""Metodos para las actualizaciones en tiempo real"""
+
+# Lista de carteles de notificación activos para apilarlos verticalmente
+_notificaciones_activas = []
+_lock_notificaciones = threading.Lock()
+
+def _mostrar_notificacion_jugador(un_juego, nombre, accion):
+    """Muestra un cartel temporal cuando un jugador se une o desconecta de la sala."""
+    import threading
+    try:
+        from recursos_graficos.elementos_de_interfaz_de_usuario import CartelAlerta
+        from recursos_graficos import constantes as _const
+
+        nombre_mostrar = nombre if nombre else "Jugador"
+        if accion == "unio":
+            mensaje = f"{nombre_mostrar} se unió a la sala"
+        else:
+            mensaje = f"{nombre_mostrar} se desconectó"
+
+        # Determinar en qué superficie mostrar el cartel
+        # Prioridad: mesa de juego activa > sala de espera
+        pantalla = un_juego.pantalla
+        ancho_cartel = 600
+        alto_cartel = 110
+        margen = 10
+        x = (_const.ANCHO_VENTANA - ancho_cartel) // 2
+        y_base = int(_const.ALTO_VENTANA * 0.08)
+       
+        with _lock_notificaciones:
+            slot = len(_notificaciones_activas)
+            y = y_base + slot * (alto_cartel + margen)
+
+        cartel = CartelAlerta(
+            pantalla=pantalla,
+            mensaje=mensaje,
+            x=x,
+            y=y,
+            ancho=ancho_cartel,
+            alto=alto_cartel,
+            mostrar_boton_cerrar=False,
+            duracion_ms=5000
+        )
+
+        # Añadir el cartel al menú activo para que se dibuje
+        menu_activo = None
+        # Preferir la mesa de juego si está activa
+        if hasattr(un_juego, 'mesa') and un_juego.mesa and getattr(un_juego.mesa, 'visible', False):
+            menu_activo = un_juego.mesa
+        elif hasattr(un_juego, 'menu_mesa_espera') and un_juego.menu_mesa_espera and getattr(un_juego.menu_mesa_espera, 'visible', False):
+            menu_activo = un_juego.menu_mesa_espera
+
+        if menu_activo is not None:
+            if not hasattr(menu_activo, 'overlays'):
+                menu_activo.overlays = []
+            menu_activo.overlays.append(cartel)
+            cartel.mostrar()
+            # Ocultar y limpiar automáticamente tras la duración
+            def _quitar():
+                try:
+                    cartel.ocultar()
+                    if cartel in menu_activo.overlays:
+                        menu_activo.overlays.remove(cartel)
+                    with _lock_notificaciones:
+                        if cartel in _notificaciones_activas:
+                            _notificaciones_activas.remove(cartel)
+                        for i, c in enumerate(_notificaciones_activas):
+                            c.rect.y = y_base + i * (alto_cartel + margen)
+                except Exception:
+                    pass
+            threading.Timer(5.2, _quitar).start()
+        else:
+            print(f"[Notificación] {mensaje}")
+    except Exception as e:
+        print(f"Error mostrando notificación de jugador: {e}")
 
 """Metodos meramente para las validaciones"""
 def validar_y_unirse_sala(un_juego, menu):
@@ -486,6 +608,65 @@ def Buscar_salas(un_juego,):
     hilo_busqueda.start()
     print(conexion_salas.conexiones_disponibles)
     
+def _mostrar_notificacion_jugador(un_juego, nombre, accion):
+    """Muestra un cartel temporal cuando un jugador se une o desconecta de la sala."""
+    import threading
+    try:
+        from recursos_graficos.elementos_de_interfaz_de_usuario import CartelAlerta
+        from recursos_graficos import constantes as _const
+
+        nombre_mostrar = nombre if nombre else "Jugador"
+        if accion == "unio":
+            mensaje = f"{nombre_mostrar} se unió a la sala"
+        else:
+            mensaje = f"{nombre_mostrar} se desconectó"
+
+        # Determinar en qué superficie mostrar el cartel
+        # Prioridad: mesa de juego activa > sala de espera
+        pantalla = un_juego.pantalla
+        ancho_cartel = 600
+        alto_cartel = 110
+        x = (_const.ANCHO_VENTANA - ancho_cartel) // 2
+        y = int(_const.ALTO_VENTANA * 0.08)
+
+        cartel = CartelAlerta(
+            pantalla=pantalla,
+            mensaje=mensaje,
+            x=x,
+            y=y,
+            ancho=ancho_cartel,
+            alto=alto_cartel,
+            mostrar_boton_cerrar=False,
+            duracion_ms=3000
+        )
+
+        # Añadir el cartel al menú activo para que se dibuje
+        menu_activo = None
+        # Preferir la mesa de juego si está activa
+        if hasattr(un_juego, 'mesa') and un_juego.mesa and getattr(un_juego.mesa, 'visible', False):
+            menu_activo = un_juego.mesa
+        elif hasattr(un_juego, 'menu_mesa_espera') and un_juego.menu_mesa_espera and getattr(un_juego.menu_mesa_espera, 'visible', False):
+            menu_activo = un_juego.menu_mesa_espera
+
+        if menu_activo is not None:
+            if not hasattr(menu_activo, 'overlays'):
+                menu_activo.overlays = []
+            menu_activo.overlays.append(cartel)
+            cartel.mostrar()
+            # Ocultar y limpiar automáticamente tras la duración
+            def _quitar():
+                try:
+                    cartel.ocultar()
+                    if cartel in menu_activo.overlays:
+                        menu_activo.overlays.remove(cartel)
+                except Exception:
+                    pass
+            threading.Timer(15.1, _quitar).start()
+        else:
+            print(f"[Notificación] {mensaje}")
+    except Exception as e:
+        print(f"Error mostrando notificación de jugador: {e}")
+
 """Metodos para las actualizaciones en tiempo real"""
 def modificacion_real_datos(un_juego, evento, constantes):
     global estado_espera_inicio
@@ -497,6 +678,21 @@ def modificacion_real_datos(un_juego, evento, constantes):
     
     if evento.type == constantes.EVENTO_SALAS_ENCONTRADAS:
         un_juego.lista_elementos["salas_disponibles"] = evento.salas
+    # Si estamos en el menú de selección de sala, reconstruirlo con la lista nueva
+        try:
+            if hasattr(un_juego, "menu_seleccion_sala") and un_juego.menu_seleccion_sala.visible:
+                if un_juego.menu_seleccion_sala in un_juego.elementos_creados:
+                    un_juego.elementos_creados.remove(un_juego.menu_seleccion_sala)
+
+                un_juego.menu_seleccion_sala = un_juego.Menu_seleccion_sala()
+                Mostrar_seccion(un_juego, un_juego.menu_seleccion_sala)
+
+                print("Menú de salas actualizado con salas nuevas")
+        except Exception as e:
+            print(f"No se pudo refrescar menú de salas: {e}")
+
+    if evento.type == constantes.EVENTO_NOTIFICACION_JUGADOR:
+        _mostrar_notificacion_jugador(un_juego, evento.nombre, evento.accion)
     
     # Manejar evento de inicio de partida - versión no bloqueante
     if evento.type == constantes.EVENTO_INICIAR_PARTIDA:
@@ -506,7 +702,23 @@ def modificacion_real_datos(un_juego, evento, constantes):
         estado_espera_inicio['tiempo_inicio'] = pygame.time.get_ticks()
         estado_espera_inicio['evento_pendiente'] = evento
         estado_espera_inicio['ultimo_debug'] = None  # Resetear para empezar a contar desde el inicio
-    
+
+    # ── Evento Cheat/Admin: concluir ronda inmediatamente ─────────────────────
+    # Este evento puede llegar de dos fuentes:
+    #   a) Disparado localmente por CheatAdminMixin._aplicar_mano_cheat_local()
+    #      cuando no hay servidor activo (modo prueba).
+    #   b) Disparado por el procesador de mensajes de red cuando el servidor
+    #      reenvía la notificación "concluir_ronda" a todos los clientes.
+    #
+    # El evento debe tener los atributos:
+    #   evento.ronda        → número de ronda concluida
+    #   evento.cartas_cheat → lista de dicts {"numero":..,"figura":..}
+    #   evento.id_jugador   → id del jugador host que concluyó la ronda
+    if evento.type == constantes.EVENTO_CONCLUIR_RONDA:
+        _manejar_evento_concluir_ronda(un_juego, evento)
+    # ─────────────────────────────────────────────────────────────────────────
+def verificar_espera_inicio_partida(un_juego):
+    global estado_espera_inicio
     # Verificar en cada frame si debemos mostrar la mesa (no bloqueante)
     if estado_espera_inicio['esperando']:
         tiempo_actual = pygame.time.get_ticks()
@@ -549,3 +761,176 @@ def modificacion_real_datos(un_juego, evento, constantes):
             estado_espera_inicio['evento_pendiente'] = None
             estado_espera_inicio['ultimo_debug'] = None
             print("Mesa mostrada")
+
+##metodo de desconexion para el host y jugadores, este metodo se llama al darle salir a la mesa de espera, si es el host se desconecta el cliente y el servidor, si es un jugador que se unio solo se desconecta el cliente, luego se regresa al menu de inicio o al menu de seleccion de sala dependiendo del origen del jugador (si era un jugador que se unio o el host)
+
+def regresar_desde_mesa_espera(un_juego):
+    global cliente_rummy, server_rummy, conexion_salas
+
+    es_host = un_juego.lista_elementos.get("es_host", False)
+    origen = un_juego.lista_elementos.get("origen_espera", "")
+
+    if es_host:
+        print("El host salió. Cerrando servidor...")
+
+        try:
+            if cliente_rummy is not None:
+                cliente_rummy.activo = False
+
+                if hasattr(cliente_rummy, "buscador"):
+                    cliente_rummy.buscador = False
+
+                cliente_rummy.desconectar()
+                cliente_rummy = None
+
+        except Exception as e:
+            print(f"Error desconectando cliente host: {e}")
+
+        try:
+            if server_rummy is not None:
+                server_rummy.activo = False
+
+                if hasattr(server_rummy, "buscador"):
+                    server_rummy.buscador = False
+
+                server_rummy.desconectar()
+                server_rummy = None
+
+        except Exception as e:
+            print(f"Error cerrando servidor: {e}")
+
+        try:
+            un_juego.lista_elementos["salas_disponibles"] = []
+            un_juego.lista_elementos["lista_jugadores"] = []
+            un_juego.lista_elementos["nombre_sala"] = ""
+            un_juego.lista_elementos["nombre_creador"] = ""
+            un_juego.lista_elementos["es_host"] = False
+            un_juego.lista_elementos["origen_espera"] = ""
+
+        except Exception as e:
+            print(f"Error limpiando datos de sala local: {e}")
+
+        try:
+            conexion_salas.buscador = True
+        except Exception:
+            pass
+
+        Mostrar_seccion(un_juego, un_juego.menu_Cantidad_Jugadores)
+
+    else:
+        print("Jugador externo salió de la sala de espera.")
+
+        try:
+            if cliente_rummy is not None:
+                cliente_rummy.activo = False
+
+                if hasattr(cliente_rummy, "buscador"):
+                    cliente_rummy.buscador = False
+
+                cliente_rummy.desconectar()
+                cliente_rummy = None
+
+        except Exception as e:
+            print(f"Error desconectando jugador: {e}")
+
+        try:
+            conexion_salas.buscador = True
+        except Exception:
+            pass
+
+        if origen == "unirse_sala":
+            Mostrar_seccion(un_juego, un_juego.menu_nombre_usuario)
+        else:
+            Mostrar_seccion(un_juego, un_juego.menu_seleccion_sala)
+
+    try:
+        if hasattr(un_juego, "detener_musica"):
+            un_juego.detener_musica()
+
+        if hasattr(un_juego, "reproducir_musica_menu"):
+            un_juego.reproducir_musica_menu()
+
+    except Exception as e:
+        print(f"Error cambiando música al regresar: {e}")
+# =============================================================================
+# ── HANDLER: EVENTO_CONCLUIR_RONDA ───────────────────────────────────────────
+# =============================================================================
+
+def _manejar_evento_concluir_ronda(un_juego, evento):
+    """
+    Procesa EVENTO_CONCLUIR_RONDA en el hilo principal de Pygame.
+
+    Flujo:
+      1. Extrae los datos del evento (ronda, cartas_cheat, id_jugador).
+      2. Actualiza elementos_mesa["datos_mano_jugador"] con las cartas cheat
+         solo para el jugador local cuyo id coincida con evento.id_jugador.
+      3. Fuerza una reconstrucción visual de la mesa (llama a manejar_partida
+         si existe, o recrea la mesa si es necesario).
+      4. Muestra un cartel informativo al jugador local.
+
+    NOTA: El servidor ya habrá aplicado el cambio en su estado interno y
+    notificado a los demás clientes a través del mensaje de red.  Este handler
+    solo actualiza la capa visual del cliente que recibe el evento.
+    """
+    try:
+        ronda        = getattr(evento, "ronda",        None)
+        cartas_cheat = getattr(evento, "cartas_cheat", [])
+        id_host      = getattr(evento, "id_jugador",   1)
+
+        print(f"[ConcluirRonda] Evento recibido — ronda={ronda}, "
+              f"id_host={id_host}, cartas={cartas_cheat}")
+
+        # ── 1. Necesitamos una mesa activa ────────────────────────────────────
+        if not hasattr(un_juego, "mesa_juego") or not un_juego.mesa_juego:
+            print("[ConcluirRonda] No hay mesa_juego activa; ignorando evento.")
+            return
+
+        mesa_interfaz_obj = un_juego.mesa_juego
+        id_local = mesa_interfaz_obj.elementos_mesa.get("id_jugador")
+
+        # ── 2. Actualizar mano del jugador local si es el host ────────────────
+        # Si este cliente ES el host (id_local == id_host), actualizamos su
+        # mano visual con las cartas cheat.
+        if id_local is not None and int(id_local) == int(id_host):
+            mesa_interfaz_obj.elementos_mesa["datos_mano_jugador"] = cartas_cheat
+            print(f"[ConcluirRonda] Mano del Host actualizada con {len(cartas_cheat)} cartas cheat.")
+        else:
+            # Los demás clientes solo reciben el aviso visual; sus manos no cambian.
+            print(f"[ConcluirRonda] Cliente {id_local} ≠ host {id_host}; "
+                  "mano local sin cambios.")
+
+        # ── 3. Actualizar número de ronda en la instancia mesa_interfaz ───────
+        if ronda is not None:
+            try:
+                mesa_interfaz_obj._ronda_actual = int(ronda)
+            except Exception:
+                pass
+
+        # ── 4. Forzar reconstrucción visual ───────────────────────────────────
+        try:
+            if hasattr(mesa_interfaz_obj, "manejar_partida") and un_juego.mesa:
+                mesa_interfaz_obj.manejar_partida(un_juego.mesa)
+                print("[ConcluirRonda] manejar_partida() ejecutado.")
+        except Exception as e:
+            print(f"[ConcluirRonda] Error en manejar_partida: {e}")
+
+        # ── 5. Mostrar cartel informativo ──────────────────────────────────────
+        try:
+            if hasattr(un_juego, "cartel_alerta"):
+                if id_local is not None and int(id_local) == int(id_host):
+                    mensaje = (
+                        f"[HOST] Ronda {ronda} concluida.\n"
+                        "Tu mano fue reemplazada con las cartas cheat.\n"
+                        "¡Baja tus cartas para ganar!"
+                    )
+                else:
+                    mensaje = (
+                        f"El Host ha concluido la ronda {ronda}.\n"
+                        "Espera el resultado..."
+                    )
+                un_juego.cartel_alerta.mostrar(mensaje)
+        except Exception as e:
+            print(f"[ConcluirRonda] Error mostrando cartel: {e}")
+
+    except Exception as e:
+        print(f"[ConcluirRonda] Error general en handler: {e}")

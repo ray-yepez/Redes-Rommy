@@ -63,8 +63,11 @@ class UtilidadesMixin:
                 return carta_logica
         return None
 
-    def crear_boton_generico(self, texto, x, y, ancho, alto, accion, deshabilitado=False):
+    def crear_boton_generico(self, texto, x, y, ancho, alto, accion, deshabilitado=False, **kwargs):
         """Crea un botón con configuración estándar"""
+        color_txt = kwargs.pop('color_texto', constantes.COLOR_TEXTO_PRINCIPAL)
+        tam_fuente = kwargs.pop('tamaño_fuente', 24)
+        
         return Boton(
             un_juego=self.un_juego,
             texto=texto,
@@ -72,11 +75,11 @@ class UtilidadesMixin:
             alto=alto,
             x=x,
             y=y,
-            tamaño_fuente=constantes.F_PEQUENA,
+            tamaño_fuente=tam_fuente,
             fuente=constantes.FUENTE_ESTANDAR,
             color=constantes.ELEMENTO_FONDO_PRINCIPAL,
             radio_borde=constantes.REDONDEO_NORMAL,
-            color_texto=constantes.COLOR_TEXTO_PRINCIPAL,
+            color_texto=color_txt,
             color_borde=constantes.ELEMENTO_BORDE_PRINCIPAL,
             grosor_borde=constantes.BORDE_INTERMEDIO,
             color_borde_hover=constantes.ELEMENTO_HOVER_PRINCIPAL,
@@ -84,7 +87,8 @@ class UtilidadesMixin:
             grupo=[],
             valor=texto.lower().replace(" ", "_"),
             accion=accion,
-            deshabilitado=deshabilitado
+            deshabilitado=deshabilitado,
+            **kwargs
         )
 
     def crear_boton_transparente(self, texto, x, y, ancho, alto, accion, deshabilitado=False):

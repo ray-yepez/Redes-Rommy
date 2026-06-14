@@ -49,6 +49,9 @@ class Ventana(
         self.pantalla = pygame.display.set_mode((constantes.ANCHO_VENTANA,constantes.ALTO_VENTANA))
         self.cartel_alerta = CartelAlerta(self.pantalla, "", 0, 0)
         pygame.display.set_caption("Rummy500")
+        #self.img_fondo_mesa = pygame.image.load("./assets/Imagenes/fondos/fondo_mesa.png").convert()
+# Forzamos que la imagen mida lo mismo que la ventana
+        #self.img_fondo_mesa = pygame.transform.scale(self.img_fondo_mesa, (constantes.ANCHO_VENTANA, constantes.ALTO_VENTANA))
         # Datos de juego
         self.lista_elementos = {
             "nombre_creador": "",
@@ -57,7 +60,9 @@ class Ventana(
             "ip_sala":"",
             "lista_jugadores": [],
             "nombre_unirse": "",
-            "salas_disponibles" : []
+            "salas_disponibles" : [],
+            "es_host": False,
+            "origen_espera": ""
         }
 
         self.elementos_creados = []
@@ -98,6 +103,10 @@ class Ventana(
         self.musica_activa = False
         # volumen maestro
         self.master_volume = 1
+
+        self.cursor_base = pygame.cursors.Cursor(pygame.SYSTEM_CURSOR_ARROW)
+        self.cursor_mano = pygame.cursors.Cursor(pygame.SYSTEM_CURSOR_HAND)
+        self.cursor_actual = self.cursor_base
 
         # Crear botón silenciar
         try:
@@ -162,6 +171,9 @@ class Ventana(
 
     def reproducir_musica_menu(self):
         try:
+            if pygame.mixer.get_init() and pygame.mixer.music.get_busy():
+                return
+
             ruta = importar_desde_carpeta(
                 nombre_archivo="Audio/Main_menu.ogg",
                 nombre_carpeta="assets"
@@ -250,7 +262,7 @@ class Ventana(
 
             img = pygame.image.load(ruta_img).convert_alpha()
 
-            escala = 0.85  # ajusta este número
+            escala = 0.75  # ajusta este número
             nuevo_ancho = int(img.get_width() * escala)
             nuevo_alto = int(img.get_height() * escala)
 
@@ -258,7 +270,7 @@ class Ventana(
 
             boton_jugar.rect.width = nuevo_ancho
             boton_jugar.rect.height = nuevo_alto
-            boton_jugar.rect.center = (x + ancho // 2, y + alto // 2)
+            boton_jugar.rect.center = (x + ancho // 2, y + alto // 2 - 30)
 
             boton_jugar.superficie_texto = img
             boton_jugar.rect_texto = img.get_rect(center=boton_jugar.rect.center)
@@ -279,11 +291,11 @@ class Ventana(
     def crear_boton_silenciar(self):
         """Crea el botón de silenciar/activar música mostrado en el menú principal."""
         # Tamaño y posición: esquina inferior izquierda
-        tamaño = int(min(constantes.ANCHO_VENTANA, constantes.ALTO_VENTANA) * 0.06)  # tamaño relativo
+        tamaño = int(min(constantes.ANCHO_VENTANA, constantes.ALTO_VENTANA) * 0.065)  # tamaño relativo
         ancho = tamaño * 1.2
         alto = tamaño
-        x = 100
-        y = constantes.ALTO_VENTANA - alto - 60
+        x = 85
+        y = constantes.ALTO_VENTANA - alto - 58
 
         def accion():
             try:
@@ -298,10 +310,15 @@ class Ventana(
                 # actualizar borde para reflejar estado ON/OFF
                 try:
                     if self.master_volume == 1:
-                        boton.color_borde = constantes.ELEMENTO_CLICADO_PRINCIPAL
+                        # Sonido encendido: luz roja activa
+                        boton.grosor_borde = 50
+                        boton.color_borde = (200, 20, 60)
+                        boton.color_borde_actual = (255, 50, 50)
                     else:
-                        boton.color_borde = constantes.GRIS
-                    boton.color_borde_actual = boton.color_borde
+                        # Sonido apagado: sin luz
+                        boton.grosor_borde = 10
+                        boton.color_borde = None
+                        boton.color_borde_actual = None
                 except Exception:
                     pass
             except Exception as e:
@@ -335,6 +352,13 @@ class Ventana(
 
             boton.superficie_texto = img
             boton.rect_texto = img.get_rect(center=boton.rect.center)
+            # Configuración del borde indicador
+            boton.grosor_borde = 20
+            boton.radio_borde = 6
+
+            # Color rojo brillante cuando el sonido está activo
+            boton.color_borde = (220, 20, 60)
+            boton.color_borde_actual = boton.color_borde
 
         except Exception as e:
             print(f"No se pudo cargar imagen boton_volumen.png: {e}")
@@ -408,6 +432,23 @@ class Ventana(
             except Exception:
                 self.last_key_time = None
 
+            # ===== DEBUG POSICIONES JUGADORES =====
+            if evento.key == pygame.K_F7:
+                print("F7 presionado")
+                if hasattr(self, "mesa_juego") and self.mesa_juego:
+                    self.mesa_juego.debug_ver_posiciones_7 = not getattr(
+                        self.mesa_juego,
+                        "debug_ver_posiciones_7",
+                        False
+                    )
+
+                    print(
+                        "DEBUG posiciones 7:",
+                        self.mesa_juego.debug_ver_posiciones_7
+                    )
+                else:
+                    print("No existe self.mesa")
+
     def ejecutar_verificacion_hovers(self, posicion_raton):
         self.cartel_alerta.verificar_hover(posicion_raton)
         self.boton_jugar.verificar_hover(posicion_raton)
@@ -436,14 +477,76 @@ class Ventana(
             for menu in self.mesa.menus_activos:
                 menu.verificar_hovers(posicion_raton)
 
-    def ejecutar_dibujado(self):
-        # SUSTITUCIÓN DE: self.pantalla.fill(constantes.FONDO_VENTANA)
-        # Lógica para decidir qué fondo dibujar según la sección actual
-        if hasattr(self, 'mesa') and self.mesa and getattr(self.mesa, 'visible', False):
-            self.pantalla.blit(self.img_fondo_mesa, (0, 0))
-        else:
-            self.pantalla.blit(self.img_fondo_menus, (0, 0))
+        self.actualizar_cursor()
+    
+    #Cambia el Cursor en base al Hover
+    def actualizar_cursor(self):
+        if not self.cursor_base or not self.cursor_mano:
+            return
         
+        hover = False
+
+        #Hover en el Boton Jugar
+        if getattr(self, 'boton_jugar', None) and getattr(self.boton_jugar, 'esta_hover', False):
+            hover = True
+
+        #Hover en el Boton de Muteo
+        if getattr(self, 'boton_silenciar', None) and getattr(self.boton_silenciar, 'esta_hover', False):
+            hover = True
+
+        for menu in self.menus_principales():
+            if menu and self.menu_botones_hover(menu):
+                hover = True
+                break
+        
+        # Hover en Botones de Menus Condicionales
+        if not hover:
+            for menu_name in self.menus_condicionales():
+                if hasattr(self, menu_name):
+                    menu = getattr(self, menu_name)
+                    if self.menu_botones_hover(menu):
+                        hover = True
+                        break
+        
+        #Hover en Botones de la Mesa
+        if not hover and hasattr(self, 'mesa') and self.mesa and hasattr(self.mesa, 'menus_activos'):
+            for menu in self.mesa.menus_activos:
+                if self.menu_botones_hover(menu):
+                    hover = True
+                    break
+
+        nuevo_cursor = self.cursor_mano if hover else self.cursor_base
+        if nuevo_cursor != self.cursor_actual:
+            try:
+                pygame.mouse.set_cursor(nuevo_cursor)
+                self.cursor_actual = nuevo_cursor
+            except Exception:
+                pass
+
+        
+    #Determina si un menu tiene algun boton que tenga hover asignado
+    def menu_botones_hover(self, menu):
+        if not menu or not getattr(menu, 'visible', False):
+            return False
+        for boton in getattr(menu, 'botones', []):
+            if isinstance(boton, Boton) and getattr(boton, 'esta_hover', False) and not getattr(boton, 'deshabilitado', False):
+                return True
+        return False
+
+
+    def ejecutar_dibujado(self):
+        # 1. Dibujamos el fondo (Ya está escalado, así que solo usamos (0,0))
+        if hasattr(self, 'mesa') and self.mesa and getattr(self.mesa, 'visible', False):
+           self.pantalla.blit(self.img_fondo_mesa, (0, 0))
+        # 2. Dibujamos la lógica de la mesa (cartas, botones)
+           self.mesa.dibujar_menu() 
+        else:
+        # Fondo para cuando no estás jugando
+           self.pantalla.blit(self.img_fondo_menus, (0, 0))
+        if hasattr(self, 'menu_inicio') and self.menu_inicio:
+            self.menu_inicio.dibujar_menu()
+
+        # Mantenemos el resto de tu estructura original
         self.boton_jugar.dibujar()
         
         menus = self.menus_principales()
@@ -465,6 +568,14 @@ class Ventana(
         if hasattr(self, 'mesa') and self.mesa and hasattr(self.mesa, 'menus_activos'):
             for menu in self.mesa.menus_activos:
                 menu.dibujar_menu()
+
+        # DEBUG: dibujar posiciones simuladas de 7 jugadores
+        try:
+            if hasattr(self, "mesa_juego") and self.mesa_juego:
+                if getattr(self.mesa_juego, "debug_ver_posiciones_7", False):
+                    self.mesa_juego.dibujar_debug_posiciones_jugadores(5)
+        except Exception as e:
+            print(f"Error debug posiciones 7: {e}")
 
         self.cartel_alerta.dibujar()
         
@@ -496,6 +607,8 @@ class Ventana(
                     ejecutar = False
                 controladores.modificacion_real_datos(self,evento,constantes)
                 self.ejecutar_manejo_eventos(evento)
+            
+            controladores.verificar_espera_inicio_partida(self)
 
             # ELIMINADO: self.pantalla.fill(constantes.FONDO_VENTANA)
             # Ya no es necesario limpiar con un color, porque ejecutar_dibujado()

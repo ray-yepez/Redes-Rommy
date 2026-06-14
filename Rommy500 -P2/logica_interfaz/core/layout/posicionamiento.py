@@ -64,7 +64,8 @@ class PosicionamientoMixin:
                 y = y-200
             elif jugador.direccion == "arriba":
                 x, y = jugador.x + (jugador.ancho - 50), jugador.y - (jugador.alto + 75)
-                y = y+180
+                y = y + 180 - 20  # un poco más arriba
+                x = x + 150       # hacia la derecha
                 dx = -jugador.offset_cartas
         elif jugador.fila_cartas == "vertical":
             if jugador.direccion == "derecha":

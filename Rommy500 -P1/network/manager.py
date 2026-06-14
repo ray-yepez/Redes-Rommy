@@ -89,6 +89,11 @@ class NetworkManager:
         self.state.running = False
         self.state.running_broadcast = False
         
+        # Si es host, desconectar a todos los jugadores antes de cerrar
+        if self.state.is_host:
+            logger.info("Host deteniendo el servidor, desconectando a todos los jugadores...")
+            self._server._disconnect_all_players()
+        
         # Cerrar sockets
         if self._server.server_socket:
             try:
