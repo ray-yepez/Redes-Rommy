@@ -17,8 +17,8 @@ class CreacionMesaMixin:
             constantes.ALTO_MENU_MESA,
             x_menu,
             y_menu,
-            constantes.ELEMENTO_FONDO_TERCIARIO,
-            constantes.ELEMENTO_BORDE_TERCIARIO,
+            None,
+            None,
             constantes.BORDE_PRONUNCIADO,
             constantes.REDONDEO_NORMAL
         )
@@ -38,9 +38,9 @@ class CreacionMesaMixin:
         x_relativo, y_relativo, _, _ = self._calcular_posicion_mazo()
         scala = constantes.ESCALA_CARTAS
         accion = lambda: print(f'las cantidad de cartas en el mazo son: {self.elementos_mesa["cantidad_cartas_mazo"]}')
-        self.mostrar_mazo(mesa, x_relativo, y_relativo, scala, accion)
-        self.mostrar_carta_descarte(mesa, x_relativo + 180, y_relativo, scala)
-        self.mostrar_mazo_quema(mesa, x_relativo + 310, y_relativo, scala, accion)
+        self.mostrar_mazo(mesa, x_relativo - 45 , y_relativo - 34, scala, accion)
+        self.mostrar_carta_descarte(mesa, x_relativo  + 155, y_relativo - 34, scala)
+        self.mostrar_mazo_quema(mesa, x_relativo + 310, y_relativo - 34, scala , accion)
 
         self.crear_contador_puntos(mesa)
         

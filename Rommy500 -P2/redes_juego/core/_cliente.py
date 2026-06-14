@@ -98,6 +98,19 @@ class ClienteMixin:
             self.guardar_id_local()
             self.estado_juego = mensaje.get('estado_juego', None)
             print(f"Reconectado como {mensaje.get('nombre')}, estado restaurado.")
+        elif mensaje['type'] == 'ServidorCerrado':
+            print("El servidor ha cerrado la conexión.")
+            if self.mesa_juego:
+                try:
+                    self.mesa_juego.salir_partida()
+                except Exception:
+                    print("Error al salir de la partida tras cierre de servidor.")
+            
+            try:
+                self.desconectar()
+            except Exception:
+                pass
+
         elif mensaje['type'] == 'JugadorReconectado':
             nombre = mensaje.get('nombre')
             print(f"Jugador {mensaje['nombre']} (ID {mensaje['id_jugador']}) se ha reconectado.")

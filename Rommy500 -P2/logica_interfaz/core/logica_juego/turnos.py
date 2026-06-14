@@ -15,6 +15,12 @@ class TurnosMixin:
         else:
             self.tu_turno = False
 
+        print(
+            "MI ID:", self.elementos_mesa["id_jugador"],
+            "TURNO DE:", self.elementos_mesa["jugador_mano"][0],
+            "TU TURNO:", self.tu_turno
+        )
+
     def determinar_turno_robar(self):
         """Determina si es turno de robar"""
         if self.elementos_mesa["turno_robar"] is not None:

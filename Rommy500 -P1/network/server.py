@@ -205,16 +205,29 @@ class GameServer:
             
         elif msg_type == "CHAT":
             logger.debug(f"CHAT de {player.name}: {data.get('mensaje')}")
+            
+            # Formateamos el mensaje y lo metemos a la lista para Pygame
             msgFormat = f"{player.name}: {data.get('mensaje', '')}"
+            
+            # CORRECCIÓN 2: Imprimir en la terminal del Servidor cuando un cliente escribe
+            print(f"\n[CHAT - RECIBIDO EN SERVIDOR] {player.name}: {data.get('mensaje', '')}")
+            
             with self.state._lock_messages:
                 self.state.messagesServer.append(msgFormat)
                 if len(self.state.messagesServer) > 20:
                     self.state.messagesServer.pop(0)
-            # Reenviar CHAT al resto
+            
+            # --- NUEVO: Encender notificación para el HOST ---
+            self.state.has_unread_chat = True  # Activamos el flag en el estado global
+            
+            # Metemos el chat en la cola entrante para que la UI del Host lo lea 
+            # igual que lo hace un cliente normal
+            self.state.add_incoming_message(MessageType.UPDATE_PLAYERS.value, data)
+            
+            # Preparar datos para retransmitir
             data["playerName"] = player.name
-            # CAMBIO CLAVE: Lo añadimos a la cola de movimientos del Host
-            self.state.add_move(data, server=True)
-            # -------------------------------------------------
+            data["notificar"] = True # --- NUEVO: Flag para los clientes ---
+            
             for p in self.state.get_connected_players():
                 if not p.is_host and p.player_id != player.player_id:
                     try:

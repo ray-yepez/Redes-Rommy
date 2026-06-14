@@ -79,9 +79,23 @@ class ServidorMixin:
                 })
             except Exception as e:
                 print(f"Error al notificar a cliente sobre el cierre del servidor: {e}")
-            self.socket_servidor.close()
-            self.socket_servidor = None
+
+            with self.candado:
+                for cliente in self.clientes:
+                    try:
+                        cliente['socket'].shutdown(socket.SHUT_RDWR)
+                        cliente['socket'].close()
+                    except Exception as e:
+                        print(f"Error cerrando socket de cliente {cliente['id']}: {e}")
+                self.clientes = []
+
+            try:
+                self.socket_servidor.close()
+            except Exception as e:
+                print(f"Error cerrando socket del servidor: {e}")
     
+            self.socket_servidor = None
+
     def _eliminar_cliente(self, id_jugador):
         with self.candado:
             clientes_a_eliminar = [c for c in self.clientes if c['id'] == id_jugador]

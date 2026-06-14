@@ -55,57 +55,63 @@ class OrdenamientoManoMixin:
             self.mano.sort(key=self._clave_carta)
 
         self._actualizar_texto_boton_orden()
-
+#cambio lismar
     def crear_boton_ordenar(self, mesa) -> None:
-        """
-        Crea el botón de ordenamiento y lo agrega al Menu de la mesa.
-        Se llama desde controladores.py justo después de mesa.crear_mesa().
-
-        Args:
-            mesa: objeto Menu de la mesa de juego.
-        """
+        """Crea el botón de ordenamiento con imagen toggle."""
+        import pygame
         from recursos_graficos.elementos_de_interfaz_de_usuario import Boton
         from recursos_graficos import constantes
 
-        ancho = int(constantes.ELEMENTO_PEQUENO_ANCHO * 0.52)
-        alto  = int(constantes.ELEMENTO_PEQUENO_ALTO  * 0.52)
+        # =========================
+        # TAMAÑO DEL BOTÓN
+        # =========================
+        ancho = 190
+        alto = 98
 
-        # Posición: esquina inferior izquierda, sobre la mano del jugador.
-        # Ajusta x/y si colisiona con otros botones del juego.
-        x = int(constantes.ANCHO_VENTANA * 0.01)
-        y = int(constantes.ALTO_VENTANA  * 0.875)
+        # =========================
+        # POSICIÓN DEL BOTÓN
+        # =========================
+        x = int(constantes.ANCHO_VENTANA * 0.17)
+        y = int(constantes.ALTO_VENTANA * 0.86)
 
         def _accion_ordenar():
             self.ordenar_mano()
 
         boton = Boton(
             self.un_juego,
-            "Ord: Tríos",
+            " ",
             ancho,
             alto,
             x,
             y,
             constantes.F_PEQUENA,
             constantes.FUENTE_ESTANDAR,
-            constantes.ELEMENTO_FONDO_PRINCIPAL,
-            radio_borde         = constantes.REDONDEO_NORMAL // 2,
-            color_texto         = constantes.COLOR_TEXTO_PRINCIPAL,
-            color_borde         = constantes.ELEMENTO_BORDE_PRINCIPAL,
-            grosor_borde        = constantes.BORDE_LIGERO,
-            color_hover         = constantes.ELEMENTO_HOVER_PRINCIPAL,
-            color_borde_hover   = constantes.ELEMENTO_HOVER_PRINCIPAL,
-            color_borde_clicado = constantes.ELEMENTO_CLICADO_PRINCIPAL,
-            accion              = _accion_ordenar,
-            deshabilitado       = False,
+            color=None,
+            radio_borde=0,
+            color_texto=(255, 255, 255),
+            color_borde=None,
+            grosor_borde=0,
+            color_hover=None,
+            color_borde_hover=None,
+            color_borde_clicado=None,
+            accion=_accion_ordenar,
+            deshabilitado=False,
         )
+
+        # Asegurar rect y dimensiones
+        boton.rect = pygame.Rect(x, y, ancho, alto)
+        boton.x = x
+        boton.y = y
+        boton.ancho = ancho
+        boton.alto = alto
 
         self._boton_ordenar = boton
         mesa.botones.append(boton)
 
-    # ═══════════════════════════════════════════════════════════════════════════
-    # LÓGICA INTERNA
-    # ═══════════════════════════════════════════════════════════════════════════
+        print("CREANDO BOTON ORDENAR EN:", x, y, ancho, alto)
 
+        self._actualizar_imagen_boton_orden()
+        
     def _clave_carta(self, carta) -> tuple:
         """
         Clave de comparación según el modo activo.
@@ -165,16 +171,49 @@ class OrdenamientoManoMixin:
                     botones_mesa.append(el)
 
     def _actualizar_texto_boton_orden(self) -> None:
-        """Actualiza el label del botón toggle."""
+        """Mantiene compatibilidad, pero ahora actualiza imagen."""
+        self._actualizar_imagen_boton_orden()
+
+    def _actualizar_imagen_boton_orden(self) -> None:
+        """Cambia la imagen del botón según el modo actual."""
         if self._boton_ordenar is None:
             return
-        self._boton_ordenar.texto = (
-            "Ord: Tríos" if self._modo_orden == 'trios' else "Ord: Runs"
-        )
+
+        import pygame
+        from logica_interfaz.archivo_de_importaciones import importar_desde_carpeta
+
+        archivo = "boton_trio.png" if self._modo_orden == "trios" else "boton_runs.png"
+
         try:
-            self._boton_ordenar.prepar_texto()
-        except Exception:
-            pass
+            ruta_img = importar_desde_carpeta(
+                nombre_archivo=f"Imagenes/botones/{archivo}",
+                nombre_carpeta="assets"
+            )
+
+            img = pygame.image.load(ruta_img).convert_alpha()
+
+            ancho = self._boton_ordenar.ancho
+            alto = self._boton_ordenar.alto
+
+            img = pygame.transform.smoothscale(img, (ancho, alto))
+
+            self._boton_ordenar.superficie_texto = img
+            self._boton_ordenar.rect_texto = img.get_rect(
+            center=self._boton_ordenar.rect.center
+            )
+
+            self._boton_ordenar.texto = " "
+
+            self._boton_ordenar.color_actual = None
+            self._boton_ordenar.color = None
+            self._boton_ordenar.color_hover = None
+            self._boton_ordenar.color_clicado = None
+            self._boton_ordenar.grosor_borde = 0
+            self._boton_ordenar.color_borde = None
+            self._boton_ordenar.color_borde_actual = None
+
+        except Exception as e:
+            print(f"Error actualizando imagen del botón ordenar: {e}")
 
     # ═══════════════════════════════════════════════════════════════════════════
     # UTILIDADES DE DEBUG
