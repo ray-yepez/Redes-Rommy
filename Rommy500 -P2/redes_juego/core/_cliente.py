@@ -83,7 +83,26 @@ class ClienteMixin:
     def _manejo_mensaje_red(self, mensaje):
         # Método completo para procesar todos los mensajes del servidor
         # Este método es muy largo (360+ líneas) y se mantiene completo aquí
-        
+        if isinstance(mensaje, dict):
+            tipo_mensaje = mensaje.get('type')
+
+            # Mapeamos los 'type' directamente con las funciones encargadas de procesarlos
+            mis_handlers = {
+                'PONG': self._handle_pong_latencia,
+                'PING_HOST': self._handle_ping_host,
+                'Bienvenido': self._handle_activar_heartbeat,
+                'ManoInicial': self._handle_activar_heartbeat,
+                'NuevoJugador': self._handle_activar_heartbeat
+            }
+
+            # Si el mensaje requiere nuestra telemetría, se ejecuta su respectivo Handler
+            if tipo_mensaje in mis_handlers:
+                mis_handlers[tipo_mensaje](mensaje)
+                
+                # Si es un paquete de control de red (PONG o PING_HOST), cortamos el flujo
+                # para que no baje a las 360+ líneas de la lógica del juego
+                if tipo_mensaje in ['PONG', 'PING_HOST']:
+                    return
         # Inicializar variable si no existe
         if not hasattr(self, 'descarto_recientemente'):
             self.descarto_recientemente = False
@@ -722,6 +741,45 @@ class ClienteMixin:
                 return True
             else:
                 return False
+            
+    def iniciar_heartbeat(self):
+        """Inicializa el hilo de monitoreo de latencia."""
+        if not hasattr(self, 'heartbeat_running'):
+            self.heartbeat_running = True
+            import threading
+            hilo = threading.Thread(target=self._bucle_heartbeat, daemon=True)
+            hilo.start()
+            print("[Sistema] Hilo de latencia iniciado.")
+
+    def _bucle_heartbeat(self):
+        import time
+        while self.heartbeat_running:
+            try:
+                # Marcamos el tiempo antes de enviar
+                self.tiempo_ultimo_ping = time.perf_counter()
+                mensaje_ping = {"type": "PING"}
+                # Enviamos el ping por el socket del cliente
+                self.socket_cliente.sendall(json.dumps(mensaje_ping).encode('utf-8'))
+            except Exception as e:
+                pass
+            time.sleep(2) # Envía un ping cada 2 segundos
+    def _handle_pong_latencia(self, mensaje):
+        """Manejador para el cálculo de latencia (respuesta del servidor a nuestro PING)"""
+        latencia = (time.perf_counter() - self.tiempo_ultimo_ping) * 1000
+        print(f">>> Mi latencia al servidor: {latencia:.2f} ms")
+        reporte = {"type": "ReporteLatencia", "valor": latencia}
+        if hasattr(self, 'socket_cliente') and self.socket_cliente:
+         self.socket_cliente.sendall(json.dumps(reporte).encode('utf-8') + b'\n')
+
+    def _handle_ping_host(self, mensaje):
+      """Responde inmediatamente al Host de la partida"""
+      if hasattr(self, 'socket_cliente') and self.socket_cliente:
+        self.socket_cliente.sendall(json.dumps({'type': 'PONG_HOST'}).encode('utf-8') + b'\n')
+
+    def _handle_activar_heartbeat(self, mensaje):
+      """Activa el heartbeat cuando se recibe un mensaje de bienvenida o inicio de partida"""
+      if not hasattr(self, 'heartbeat_running'):
+        self.iniciar_heartbeat()
 
     def desconectar_cliente(self):
         """Cierra la conexión del cliente"""

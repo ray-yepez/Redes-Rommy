@@ -4,6 +4,7 @@ import socket
 import threading
 import json
 import copy
+import time
 from redes_juego import archivo_de_importaciones
 
 importar_desde_carpeta = archivo_de_importaciones.importar_desde_carpeta
@@ -23,6 +24,29 @@ class ProcesadorMensajesMixin:
                 data = socket_cliente.recv(4096)
                 if not data:
                     break
+                cadena_datos = data.decode('utf-8').strip()
+                if not cadena_datos: 
+                    continue
+                
+                # 1. Filtro de Ping/Pong
+                if '"type": "PING_HOST"' in cadena_datos or "'type': 'PING_HOST'" in cadena_datos:
+                    socket_cliente.sendall(json.dumps({'type': 'PONG_HOST'}).encode('utf-8') + b'\n')
+                    continue
+
+                # 2. Parseo de JSON seguro
+                try:
+                    mensaje = json.loads(cadena_datos)
+                except json.JSONDecodeError:
+                    continue 
+
+                # 3. Lógica de mensajes
+                if mensaje.get('type') == 'PONG_HOST':
+                    tiempo_final = time.perf_counter()
+                    cliente = self.clientes[id_jugador-1]
+                    latencia = (tiempo_final - cliente.get('tiempo_ping_enviado', tiempo_final)) * 1000
+                    cliente['latencia'] = latencia
+                    print(f"Monitor Heartbeat - Latencia Jugador {id_jugador}: {latencia:.2f} ms")
+                    continue
 
                 mensaje = json.loads(data.decode('utf-8'))
                 nombre_jugador = mensaje.get('nombre', f'Jugador{id_jugador}')
