@@ -42,6 +42,7 @@ venv/
 ENV/
 env/
 .venv
+.cfg
 
 # IDEs
 .vscode/

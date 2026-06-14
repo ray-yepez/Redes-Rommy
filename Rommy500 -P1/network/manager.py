@@ -8,7 +8,6 @@ from .health import HealthMonitor
 from .state import NetworkState
 from .config import NetworkConfig
 from .constants import MessageType
-from .game_manager import GameManager
 
 logger = logging.getLogger(__name__)
 
@@ -23,12 +22,10 @@ class NetworkManager:
         self.client = GameClient(self.state, self.transport, self.config)
         self.discovery = Discovery(self.state, self.config)
         self.health = HealthMonitor(self.state, self.transport, self.config)
-        self.game_manager = GameManager(self)
-        self._server.set_game_manager(self.game_manager)
     
     # === Métodos públicos (INTERFAZ COMPATIBLE) ===
     
-    def start_server(self, nameHost, password, max_players, nameSala):
+    def start_server(self, nameHost, password, max_players, nameSala="Sala Local"):
         """Inicia servidor.
         
         nameHost: nombre del jugador host (se muestra en el juego)
@@ -89,11 +86,6 @@ class NetworkManager:
         self.state.running = False
         self.state.running_broadcast = False
         
-        # Si es host, desconectar a todos los jugadores antes de cerrar
-        if self.state.is_host:
-            logger.info("Host deteniendo el servidor, desconectando a todos los jugadores...")
-            self._server._disconnect_all_players()
-        
         # Cerrar sockets
         if self._server.server_socket:
             try:
@@ -128,8 +120,6 @@ class NetworkManager:
     
     def startGame(self):
         self.state.game_started = True
-        player_ids = [p.player_id for p in self.state.get_connected_players()]
-        self.game_manager.start_game(player_ids)
         msg = {"type": MessageType.START_GAME.value}
         self.broadcast_message(msg)
         self.state.msgStartGame.update(msg)
@@ -284,3 +274,42 @@ class NetworkManager:
                 print(f"{str(clave).rjust(15)}: {valor}")
         else:
             return False
+    # === GESTOR DE CHAT Y NOTIFICACIONES ===
+
+    # === GESTOR DE CHAT Y NOTIFICACIONES ===
+
+    def send_chat_message(self, mensaje: str):
+        """Estructura el JSON del chat y lo envía a la red."""
+        msg_data = {
+            "type": "CHAT",
+            "playerName": self.state.playerName, 
+            "mensaje": mensaje,
+            "notificar": True # Flag de aviso para los receptores
+        }
+        
+        if self.state.is_host:
+            # CORRECCIÓN 1: Cambiamos el nombre del Host por "Tú" para su propia UI
+            msgFormat = f"Tú: {mensaje}"
+            
+            # CORRECCIÓN 2: Imprimir directamente en la terminal del Servidor
+            print(f"\n[CHAT - LOCAL (HOST)] Tú: {mensaje}")
+            
+            with self.state._lock_messages:
+                self.state.messagesServer.append(msgFormat)
+                if len(self.state.messagesServer) > 20:
+                    self.state.messagesServer.pop(0)
+            
+            # Y luego lo retransmite al resto de jugadores
+            self.broadcast_message(msg_data)
+        else:
+            # Los clientes normales simplemente se lo envían al Host
+            self.sendData(msg_data)
+
+    @property
+    def needs_chat_notification(self) -> bool:
+        """La UI puede consultar esta propiedad en cada frame para dibujar el ícono."""
+        return self.state.has_unread_chat
+        
+    def clear_chat_notification(self):
+        """Llama a este método justo en el evento donde el jugador abre el chat."""
+        self.state.has_unread_chat = False

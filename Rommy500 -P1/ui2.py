@@ -94,22 +94,99 @@ mostrar_boton_comprar = False
 # guarda la última carta tomada y por quién (para impedir descartarla en el mismo turno)
 last_taken_card = None
 last_taken_player = None
+
+toast_compra_texto = ""
+toast_compra_hasta = 0
+TOAST_COMPRA_DURACION = 3
 #Cambio Boton Menu / Salir
 
-
-
-
-def show_menu_modal(screen, WIDTH, HEIGHT, ASSETS_PATH):
+def show_exit_confirmation_modal(screen, WIDTH, HEIGHT, ASSETS_PATH): 
     import pygame
     import os
     clock = pygame.time.Clock()
-    img_reanudar = pygame.image.load(os.path.join(ASSETS_PATH, "reanudar.png")).convert_alpha()
-    img_ajustes = pygame.image.load(os.path.join(ASSETS_PATH, "ajustes.png")).convert_alpha()
-    img_salir = pygame.image.load(os.path.join(ASSETS_PATH, "salir.png")).convert_alpha()
-    btn_w, btn_h = 220, 70
+    
+    # Capturar la pantalla de fondo para el efecto de pausa
+    try:
+        background_snapshot = screen.copy()
+    except Exception:
+        background_snapshot = pygame.Surface((WIDTH, HEIGHT))
+        background_snapshot.blit(screen, (0, 0))
+
+    # Oscurecer un poco el fondo
+    overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 140))
+
+    # Medidas de la ventanita de confirmación
+    w, h = 500, 200
+    x = (WIDTH - w) // 2
+    y = (HEIGHT - h) // 2
+    modal_rect = pygame.Rect(x, y, w, h)
+
+    # Configurar botones "SÍ" y "NO"
+    btn_w, btn_h = 120, 40
+    btn_yes = pygame.Rect(x + 80, y + 120, btn_w, btn_h)
+    btn_no = pygame.Rect(x + w - 80 - btn_w, y + 120, btn_w, btn_h)
+
+    # Cargar la fuente pixelada del proyecto
+    font_path = os.path.join(ASSETS_PATH, "PressStart2P-Regular.ttf")
+    font_text = pygame.font.Font(font_path, 14)
+    font_btn = pygame.font.Font(font_path, 14)
+
+    while True:
+        mouse_pos = pygame.mouse.get_pos()
+        
+        for ev in pygame.event.get():
+            if ev.type == pygame.QUIT:
+                return False
+            if ev.type == pygame.KEYDOWN and ev.key == pygame.K_ESCAPE:
+                return False  # Si presiona ESC, cancela la salida
+            if ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
+                if btn_yes.collidepoint(mouse_pos):
+                    return True   # Confirmado: quiere salir
+                if btn_no.collidepoint(mouse_pos):
+                    return False  # Cancelado: se queda en el juego
+
+        # Dibujar elementos
+        screen.blit(background_snapshot, (0, 0))
+        screen.blit(overlay, (0, 0))
+
+        # Cuadro base del modal
+        pygame.draw.rect(screen, (40, 40, 40), modal_rect, border_radius=12)
+        pygame.draw.rect(screen, (150, 150, 150), modal_rect, 2, border_radius=12)
+
+        # Texto solicitado por el profesor (Centrado horizontalmente)
+        text_surf = font_text.render(chr(191) + "Estas seguro de salir del juego?", True, (230, 230, 230))
+        screen.blit(text_surf, (x + (w - text_surf.get_width()) // 2, y + 45))
+
+        # --- BOTÓN SÍ ---
+        color_yes = (192, 57, 43) if btn_yes.collidepoint(mouse_pos) else (150, 40, 40) # Hover rojo brillante
+        pygame.draw.rect(screen, color_yes, btn_yes, border_radius=6)
+        text_yes = font_btn.render("SI", True, (255, 255, 255))
+        screen.blit(text_yes, (btn_yes.x + (btn_w - text_yes.get_width()) // 2, btn_yes.y + (btn_h - text_yes.get_height()) // 2))
+
+        # --- BOTÓN NO ---
+        color_no = (52, 152, 219) if btn_no.collidepoint(mouse_pos) else (40, 120, 180) # Hover azul brillante
+        pygame.draw.rect(screen, color_no, btn_no, border_radius=6)
+        text_no = font_btn.render("NO", True, (255, 255, 255))
+        screen.blit(text_no, (btn_no.x + (btn_w - text_no.get_width()) // 2, btn_no.y + (btn_h - text_no.get_height()) // 2))
+
+        pygame.display.flip()
+        clock.tick(60) 
+        
+def show_menu_modal(screen, WIDTH, HEIGHT, ASSETS_PATH, ctrl_volumen):
+    import pygame
+    import os
+    clock = pygame.time.Clock()
+    
+    # 1. Cargar las imágenes
+    img_reanudar = pygame.image.load(os.path.join(ASSETS_PATH, "renaudar_btn.png")).convert_alpha()
+    img_salir = pygame.image.load(os.path.join(ASSETS_PATH, "salir_btn.png")).convert_alpha()
+    
+    # 2. Unificar el tamaño de los botones
+    btn_w, btn_h = 240, 60 
     img_reanudar = pygame.transform.smoothscale(img_reanudar, (btn_w, btn_h))
-    img_ajustes = pygame.transform.smoothscale(img_ajustes, (btn_w, btn_h))
     img_salir = pygame.transform.smoothscale(img_salir, (btn_w, btn_h))
+
     try:
         background_snapshot = screen.copy()
     except Exception:
@@ -119,20 +196,31 @@ def show_menu_modal(screen, WIDTH, HEIGHT, ASSETS_PATH):
     overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
     overlay.fill((0, 0, 0, 140))
 
-    w, h = 330, 300
+    # 3. Hacer el modal más grande (400 de ancho x 360 de alto)
+    w, h = 400, 360 
     x = (WIDTH - w) // 2
     y = (HEIGHT - h) // 2
     modal_rect = pygame.Rect(x, y, w, h)
     padding = 16
 
-    btn_w, btn_h = 220, 44
-    espacio_vertical = 35
+    # 4. Posicionar los botones centrados
     inicio_y = y + 40
     btn_resume = pygame.Rect(x + (w - btn_w) // 2, inicio_y, btn_w, btn_h)
-    btn_config = pygame.Rect(x + (w - btn_w) // 2, inicio_y + btn_h + espacio_vertical, btn_w, btn_h)
-    btn_exit   = pygame.Rect(x + (w - btn_w) // 2, inicio_y + 2 * (btn_h + espacio_vertical), btn_w, btn_h)
+    btn_exit = pygame.Rect(x + (w - btn_w) // 2, inicio_y + 190, btn_w, btn_h)
+
+    # 5. DEFINIR LAS FUENTES CORRECTAMENTE (Aquí estaba el bug)
     font_path = os.path.join(ASSETS_PATH, "PressStart2P-Regular.ttf")
     title_font = pygame.font.Font(font_path, 16)
+    vol_font = pygame.font.Font(font_path, 12) # <--- Variable agregada
+
+    # 6. Centrar el control de volumen dinámicamente dentro del modal
+    ancho_total_volumen = (len(ctrl_volumen.rects) * ctrl_volumen.ancho_btn) + ((len(ctrl_volumen.rects) - 1) * ctrl_volumen.espacio)
+    vol_x = x + (w - ancho_total_volumen) // 2
+    vol_y = inicio_y + 120
+    # Actualizamos las posiciones de las barritas de volumen
+    for i, rect in enumerate(ctrl_volumen.rects):
+        rect.x = vol_x + (i * (ctrl_volumen.ancho_btn + ctrl_volumen.espacio))
+        rect.y = vol_y
 
     while True:
         for ev in pygame.event.get():
@@ -144,28 +232,36 @@ def show_menu_modal(screen, WIDTH, HEIGHT, ASSETS_PATH):
                 mx, my = ev.pos
                 if btn_resume.collidepoint(mx, my):
                     return "resume"
-                if btn_config.collidepoint(mx, my):
-                    return "config"
                 if btn_exit.collidepoint(mx, my):
-                    pygame.quit()
+                    return "exit"
 
-        if pygame.display.get_init():
-            screen.blit(background_snapshot, (0, 0))
-            screen.blit(overlay, (0, 0))
+        screen.blit(background_snapshot, (0, 0))
+        screen.blit(overlay, (0, 0))
 
-            pygame.draw.rect(screen, (40, 40, 40), modal_rect, border_radius=12)
-            pygame.draw.rect(screen, (150, 150, 150), modal_rect, 2, border_radius=12)
+        # Dibujar caja del modal
+        pygame.draw.rect(screen, (40, 40, 40), modal_rect, border_radius=12)
+        pygame.draw.rect(screen, (150, 150, 150), modal_rect, 2, border_radius=12)
 
-            title = title_font.render("Menú de Pausa", True, (230, 230, 230))
-            screen.blit(title, (x + padding + 50, y + padding))
+        # Dibujar Título
+        title = title_font.render("Menú de Pausa", True, (230, 230, 230))
+        screen.blit(title, (x + (w - title.get_width()) // 2, y + padding))
 
-            screen.blit(img_reanudar, btn_resume.topleft)
-            screen.blit(img_ajustes, btn_config.topleft)
-            screen.blit(img_salir, btn_exit.topleft)
-            pygame.display.flip()
-            clock.tick(60)
-        else:
-            return "exit"
+        # Dibujar Botón Reanudar
+        screen.blit(img_reanudar, btn_resume.topleft)
+        
+        # Dibujar Texto de Volumen
+        vol_text = vol_font.render("Volumen de Música", True, (200, 200, 200))
+        screen.blit(vol_text, (x + (w - vol_text.get_width()) // 2, inicio_y + 90))
+
+        # Actualizar y dibujar las barritas de volumen
+        ctrl_volumen.actualizar_y_dibujar()
+        
+        # Dibujar Botón Salir
+        screen.blit(img_salir, btn_exit.topleft)
+        
+        pygame.display.flip()
+        clock.tick(60)
+
 #Cambio Boton Menu / Salir
 
 def register_taken_card(player, card):
@@ -334,6 +430,42 @@ def render_text_with_border(text, font, color, border_color, pos, surface):
     # Dibuja el texto principal encima
     txt = font.render(text, True, color)
     surface.blit(txt, pos)
+
+def mostrar_toast_compra(nombre_jugador, origen="descarte"):
+    global toast_compra_texto, toast_compra_hasta
+    if origen == "mazo":
+        toast_compra_texto = f"{nombre_jugador} compró una carta"
+    elif origen == "central":
+        toast_compra_texto = f"{nombre_jugador} tomó la carta central"
+    else:
+        toast_compra_texto = f"{nombre_jugador} tomó la carta del descarte"
+    toast_compra_hasta = time.time() + TOAST_COMPRA_DURACION
+
+def dibujar_toast_compra(surface, width, turno_rect=None):
+    global toast_compra_texto
+    if not toast_compra_texto or time.time() >= toast_compra_hasta:
+        toast_compra_texto = ""
+        return
+
+    font_toast = get_game_font(14)
+    text_surf = font_toast.render(toast_compra_texto, True, (255, 255, 255))
+    padding_x = 18
+    padding_y = 10
+    toast_w = min(width - 40, text_surf.get_width() + padding_x * 2)
+    toast_h = text_surf.get_height() + padding_y * 2
+    x = (width - toast_w) // 2
+    y = 76
+    if turno_rect:
+        y = max(y, turno_rect.bottom + 8)
+
+    toast_surface = pygame.Surface((toast_w, toast_h), pygame.SRCALPHA)
+    pygame.draw.rect(toast_surface, (45, 35, 35, 210), toast_surface.get_rect(), border_radius=10)
+    pygame.draw.rect(toast_surface, (249, 170, 51, 230), toast_surface.get_rect(), 2, border_radius=10)
+
+    text_rect = text_surf.get_rect(center=(toast_w // 2, toast_h // 2))
+    toast_surface.blit(text_surf, text_rect)
+    surface.blit(toast_surface, (x, y))
+
 
 def draw_transparent_rect(surface, color, rect, border=1):
     temp_surface = pygame.Surface((rect.width, rect.height), pygame.SRCALPHA)
@@ -505,8 +637,60 @@ def confirm_buy_card(screen, card, WIDTH, HEIGHT, ASSETS_PATH, font):
         clock.tick(60)
 #COMPRAR CARTA'''
 
-
-
+def confirm_exit_modal(screen, WIDTH, HEIGHT):
+    clock = pygame.time.Clock()
+    try:
+        snapshot = screen.copy()
+    except:
+        snapshot = pygame.Surface((WIDTH, HEIGHT))
+        
+    overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
+    overlay.fill((0, 0, 0, 180))
+    
+    w, h = 560, 260
+    x = (WIDTH - w) // 2
+    y = (HEIGHT - h) // 2
+    modal_rect = pygame.Rect(x, y, w, h)
+    
+    btn_w, btn_h = 130, 50
+    btn_si = pygame.Rect(x + 80, y + 160, btn_w, btn_h)
+    btn_no = pygame.Rect(x + w - btn_w - 80, y + 160, btn_w, btn_h)
+    
+    font_title = get_game_font(38)
+    font_text = get_game_font(20)
+    
+    while True:
+        for ev in pygame.event.get():
+            if ev.type == pygame.QUIT:
+                return False
+            if ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
+                if btn_si.collidepoint(ev.pos):
+                    return True
+                if btn_no.collidepoint(ev.pos):
+                    return False
+                    
+        screen.blit(snapshot, (0, 0))
+        screen.blit(overlay, (0, 0))
+        
+        pygame.draw.rect(screen, (40, 40, 40), modal_rect, border_radius=12)
+        pygame.draw.rect(screen, (200, 50, 50), modal_rect, 3, border_radius=12)
+        
+        title = font_title.render("¿SALIR?", True, (255, 255, 255))
+        screen.blit(title, (x + (w - title.get_width())//2, y + 30))
+        
+        info = font_text.render("¿Seguro quieres salir?", True, (200, 200, 200))
+        screen.blit(info, (x + (w - info.get_width())//2, y + 95))
+        
+        pygame.draw.rect(screen, (50, 180, 50), btn_si, border_radius=8)
+        lbl_si = font_text.render("SÍ", True, (255, 255, 255))
+        screen.blit(lbl_si, lbl_si.get_rect(center=btn_si.center))
+        
+        pygame.draw.rect(screen, (180, 50, 50), btn_no, border_radius=8)
+        lbl_no = font_text.render("NO", True, (255, 255, 255))
+        screen.blit(lbl_no, lbl_no.get_rect(center=btn_no.center))
+        
+        pygame.display.flip()
+        clock.tick(60)
 
 #CambioJoker #WhySoSerious
 
@@ -620,7 +804,7 @@ def draw_player_hand(player, rect, cuadros_interactivos=None, cartas_ref=None, o
             solapamiento = int(base_sep - (base_sep - min_sep) * (n - 6) / 6)
         total_width = card_width + (n - 1) * solapamiento
         if total_width > rect.width:
-            solapamiento = max(8, (rect.width - card_width) // (n - 1))
+            solapamiento = max(4, (rect.width - card_width) // (n - 1))
         start_x = rect.x + (rect.width - (card_width + (n - 1) * solapamiento)) // 2
     else:
         solapamiento = 0
@@ -902,6 +1086,128 @@ def update_comprar_visibility():
     
     return True
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# DEV TOOL — Carga de mano ganadora predefinida según la ronda actual
+# ═══════════════════════════════════════════════════════════════════════════════
+def _dev_cargar_mano_ganadora(jugador_local, visual_hand,
+                              cuadros_interactivos, cartas_ref,
+                              roundOne, roundTwo, roundThree, roundFour):
+    """
+    [DEV TOOL] Reemplaza la mano de jugador_local con una mano ganadora
+    predefinida para la ronda activa y actualiza la visual inmediatamente.
+
+    Instrucciones para rellenar las manos:
+    ──────────────────────────────────────
+    Usa objetos Card con la sintaxis:  Card("valor", "palo")
+    Palos disponibles : "♠"  "♥"  "♦"  "♣"
+    Valores disponibles: "2".."10", "J", "Q", "K", "A"
+    Joker             : Card("Joker", "", joker=True)
+
+    Ronda 1 → 1 Trío  (3 cartas) + 1 Seguidilla (4 cartas) = 7 cartas mínimo
+              Ejemplo de estructura:
+                trio      = [Card("9","♠"), Card("9","♥"), Card("9","♦")]
+                seguidilla = [Card("2","♣"), Card("3","♣"), Card("4","♣"), Card("5","♣")]
+                mano_r1 = trio + seguidilla
+
+    Ronda 2 → 2 Seguidillas (4 cartas cada una) = 8 cartas mínimo
+              Ejemplo:
+                seg1 = [Card("2","♠"), Card("3","♠"), Card("4","♠"), Card("5","♠")]
+                seg2 = [Card("7","♥"), Card("8","♥"), Card("9","♥"), Card("10","♥")]
+                mano_r2 = seg1 + seg2
+
+    Ronda 3 → 3 Tríos (3 cartas cada uno) = 9 cartas mínimo
+              Ejemplo:
+                trio1 = [Card("4","♠"), Card("4","♥"), Card("4","♦")]
+                trio2 = [Card("7","♠"), Card("7","♥"), Card("7","♦")]
+                trio3 = [Card("K","♠"), Card("K","♥"), Card("K","♦")]
+                mano_r3 = trio1 + trio2 + trio3
+
+    Ronda 4 → 2 Tríos + 1 Seguidilla, Y el jugador DEBE bajar TODAS sus cartas.
+              Ejemplo:
+                trio1  = [Card("5","♠"), Card("5","♥"), Card("5","♦")]
+                trio2  = [Card("J","♠"), Card("J","♥"), Card("J","♦")]
+                seg    = [Card("2","♣"), Card("3","♣"), Card("4","♣"), Card("5","♣")]
+                mano_r4 = trio1 + trio2 + seg
+    """
+
+    # ── RONDA 1 : 1 Trío (3 cartas, mismo valor) + 1 Seguidilla (4 cartas, mismo palo, consecutivas)
+    # Total: 7 cartas.  El validador acepta exactamente 3 en el trío y 4 en la seguidilla.
+    mano_r1 = [
+        # --- Trío de Nueves ---
+        Card("9", "♠"), Card("9", "♥"), Card("9", "♦"),
+        # --- Seguidilla de Tréboles 2-3-4-5 ---
+        Card("2", "♣"), Card("3", "♣"), Card("4", "♣"), Card("5", "♣"),
+    ]
+
+    # ── RONDA 2 : 2 Seguidillas (4 cartas c/u, mismo palo, consecutivas) ────
+    # Total: 8 cartas.  Deben ser seguidillas DISTINTAS (no una misma extendida).
+    mano_r2 = [
+        # --- Primera seguidilla: Picas 5-6-7-8 ---
+        Card("5", "♠"), Card("6", "♠"), Card("7", "♠"), Card("8", "♠"),
+        # --- Segunda seguidilla: Corazones J-Q-K-A ---
+        Card("J", "♥"), Card("Q", "♥"), Card("K", "♥"), Card("A", "♥"),
+    ]
+
+    # ── RONDA 3 : 3 Tríos (3 cartas c/u, mismo valor por trío, valores DISTINTOS entre tríos)
+    # Total: 9 cartas.  El validador rechaza dos tríos del mismo valor.
+    mano_r3 = [
+        # --- Trío de Cuatros ---
+        Card("4", "♠"), Card("4", "♥"), Card("4", "♦"),
+        # --- Trío de Jotas ---
+        Card("J", "♠"), Card("J", "♥"), Card("J", "♦"),
+        # --- Trío de Reyes ---
+        Card("K", "♠"), Card("K", "♥"), Card("K", "♣"),
+    ]
+
+    # ── RONDA 4 : 2 Tríos (valores distintos) + 1 Seguidilla.
+    # IMPORTANTE: en Ronda 4 el jugador DEBE bajar TODAS sus cartas en un solo turno.
+    # La mano NO puede tener cartas extra; coloca aquí exactamente las que van a la mesa.
+    # Total: 10 cartas  (3 + 3 + 4).
+    mano_r4 = [
+        # --- Trío de Seises ---
+        Card("6", "♠"), Card("6", "♥"), Card("6", "♦"),
+        # --- Trío de Ases ---
+        Card("A", "♠"), Card("A", "♥"), Card("A", "♦"),
+        # --- Seguidilla de Diamantes 7-8-9-10 ---
+        Card("7", "♦"), Card("8", "♦"), Card("9", "♦"), Card("10", "♦"),
+    ]
+
+    # ── Selección de la mano según la ronda activa ───────────────────────────
+    if roundOne:
+        nueva_mano = mano_r1
+        etiqueta_ronda = "Ronda 1"
+    elif roundTwo:
+        nueva_mano = mano_r2
+        etiqueta_ronda = "Ronda 2"
+    elif roundThree:
+        nueva_mano = mano_r3
+        etiqueta_ronda = "Ronda 3"
+    elif roundFour:
+        nueva_mano = mano_r4
+        etiqueta_ronda = "Ronda 4"
+    else:
+        nueva_mano = []
+        etiqueta_ronda = "desconocida"
+
+    if not nueva_mano:
+        print(f"[DEV] _dev_cargar_mano_ganadora: mano para {etiqueta_ronda} está vacía. "
+              "Rellena la lista correspondiente en la función.")
+        return f"[DEV] Mano de {etiqueta_ronda} no configurada. Agrega las cartas en _dev_cargar_mano_ganadora()."
+
+    # ── Asignar la nueva mano al jugador ────────────────────────────────────
+    jugador_local.playerHand.clear()
+    jugador_local.playerHand.extend(nueva_mano)
+
+    # Marcar cardDrawn=True para que el jugador pueda bajarse sin tomar carta
+    jugador_local.cardDrawn = True
+
+    # NOTA: la reconstrucción de visual_hand, cartas_ocultas, cuadros_interactivos
+    # y cartas_ref se realiza en el handler del clic dentro de main(), donde esas
+    # variables locales son accesibles. Esta función solo prepara playerHand.
+    print(f"[DEV] playerHand reemplazada para {etiqueta_ronda}: "
+          f"{[str(c) for c in jugador_local.playerHand]}")
+    return f"[DEV] Mano de {etiqueta_ronda} cargada ({len(nueva_mano)} cartas). ¡Ya puedes bajarte!"
+# ═══════════════════════════════════════════════════════════════════════════════
 
 def main(manager_de_red): # <-- Acepta el manager de red
     global mostrar_boton_comprar
@@ -911,6 +1217,7 @@ def main(manager_de_red): # <-- Acepta el manager de red
     global dragging, carta_arrastrada, drag_rect, drag_offset_x, cartas_congeladas
     global cartas_ocultas, organizar_habilitado, mensaje_temporal, mensaje_tiempo
     global fase_fin_tiempo, mazo_descarte, deckForRound, round
+    global toast_compra_texto, toast_compra_hasta
     global mostrar_joker_fondo, tiempo_joker_fondo
     global player1   #NUEVO PARA PRUEBA
     global jugador_local  #NUEVO PARA PRUEBA Reeplazo de player1 :'(
@@ -1001,6 +1308,8 @@ def main(manager_de_red): # <-- Acepta el manager de red
     # Variables temporales:
     mensaje_temporal = ""
     mensaje_tiempo = 0
+    toast_compra_texto = ""
+    toast_compra_hasta = 0
 
     fase_fin_tiempo = 0  # Para controlar cuánto tiempo mostrar la pantalla final
            
@@ -1029,9 +1338,21 @@ def main(manager_de_red): # <-- Acepta el manager de red
     carta_sound_path = os.path.join(ASSETS_PATH, "sonido", "carta.wav")
     carta_sound = pygame.mixer.Sound(carta_sound_path)
 
-    # Cargar sonido de bajarse
-    bajarse_sound_path = os.path.join(ASSETS_PATH, "sonido", "bajarse.wav")
-    bajarse_sound = pygame.mixer.Sound(bajarse_sound_path)
+    # Cargar sonido para el botón ordenar 
+    try:
+        ordenar_sound_path = os.path.join(ASSETS_PATH, "sonido", "ordenar.mp3") 
+        ordenar_sound = pygame.mixer.Sound(ordenar_sound_path)
+    except Exception as e:
+        print("Aviso: No se encontró el sonido de ordenar:", e)
+        ordenar_sound = None
+
+#  Cargar sonido para el botón extender
+    try:
+        extender_sound_path = os.path.join(ASSETS_PATH, "sonido", "extender.mp3") 
+        extender_sound = pygame.mixer.Sound(extender_sound_path)
+    except Exception as e:
+        print("Aviso: No se encontró el sonido de extender:", e)
+        extender_sound = None
 
     #contJugador = 0
     #contHost = 0
@@ -1048,7 +1369,7 @@ def main(manager_de_red): # <-- Acepta el manager de red
     time_confirm = None         # Variable para manejar el tiempo de espera por mensajes tardios en ciclo de compra.
     list_confirm_ids = []       # Lista para almacenar jugadores que ya tuvieron su turno de compra.
 
-    ctrl_volumen = ControlVolumen(x=1025, y=80)
+    ctrl_volumen = ControlVolumen(x=500, y=500)
 
     # ── Botón de ordenamiento de mano ─────────────────────────────────────────
     # Posición: esquina inferior derecha, por encima de la zona de cartas.
@@ -1085,6 +1406,19 @@ def main(manager_de_red): # <-- Acepta el manager de red
                 #print(f"Este es el mensaje recibido en fase eleccion ORDENNNN  {type(msgList)} {msgList}")
                 for msg in msgList:
                     if isinstance(msg[1], dict):
+                        if msg[1].get("type") == "DESCONEXION":
+                            reason = msg[1].get("reason", "")
+                            if reason == "HOST_LEFT":
+                                mensaje_temporal = "El host abandonó la partida. El juego finalizará."
+                            else:
+                                mensaje_temporal = "Se perdió la conexión con el host. El juego finalizará."
+                            mensaje_tiempo = time.time()
+                            running = False
+                            try:
+                                network_manager.stop()
+                            except Exception:
+                                pass
+                            break
                         if msg[1].get("type") == "PLAYER_ORDER":
                             just_went_down_this_turn = False
                             last_inserted_card_data = None
@@ -1303,6 +1637,26 @@ def main(manager_de_red): # <-- Acepta el manager de red
 
         
         # --- FASE DE JUEGO NORMAL ---
+        # Procesar mensajes generales que no pasan por get_moves_game
+        incoming = network_manager.get_incoming_messages()
+        for raw_msg in incoming:
+            if isinstance(raw_msg[1], dict) and raw_msg[1].get("type") == "DESCONEXION":
+                reason = raw_msg[1].get("reason", "")
+                if reason == "HOST_LEFT":
+                    mensaje_temporal = "El host abandonó la partida. El juego finalizará."
+                else:
+                    mensaje_temporal = "Se perdió la conexión con el host. El juego finalizará."
+                mensaje_tiempo = time.time()
+                running = False
+                try:
+                    network_manager.stop()
+                except Exception:
+                    pass
+                break
+
+        if not running:
+            break
+
         # Procesando mensajes del juego
         if not network_manager.is_host:
             msgGame = network_manager.get_moves_game()
@@ -1348,6 +1702,7 @@ def main(manager_de_red): # <-- Acepta el manager de red
                 for p in players:
                     if p.playerId == player_id_que_tomoD:
                         p.playerHand = mano_restante
+                        mostrar_toast_compra(p.playerName, "descarte")
                         #pass
                 cardTakenD = carta_tomada
                 mazo_descarte = mazo_de_descarte   #round.discards #mazo_de_descarte
@@ -1370,6 +1725,7 @@ def main(manager_de_red): # <-- Acepta el manager de red
                     if p.playerId == player_id_que_tomoC:
                         p.playerHand = mano_restante
                         p.playerPass = False
+                        mostrar_toast_compra(p.playerName, "mazo")
                         #pass
                 cardTaken = carta_tomada
                 deckForRound = mazoBocaAbajo #round.pile
@@ -1594,6 +1950,7 @@ def main(manager_de_red): # <-- Acepta el manager de red
                 else:
                     mensaje_temporal = f"{player_name_que_compro} compro la carta."
                     mensaje_tiempo = time.time()
+                mostrar_toast_compra(player_name_que_compro, "descarte")
             
             elif isinstance(msg, dict) and msg.get("type") == "INSERTAR_CARTA":
                 mano_restante = msg.get("playerHand")
@@ -1652,14 +2009,75 @@ def main(manager_de_red): # <-- Acepta el manager de red
                         
                 mensaje_temporal = f"El jugador {p_name} abandonó la partida"
                 mensaje_tiempo = time.time()
-                
-                
+
+            elif isinstance(msg, dict) and msg.get("type") == "DESCONEXION":
+                reason = msg.get("reason", "")
+                if reason == "HOST_LEFT":
+                    mensaje_temporal = "El host abandonó la partida. El juego finalizará."
+                else:
+                    mensaje_temporal = "Se perdió la conexión con el host. El juego finalizará."
+                mensaje_tiempo = time.time()
+                running = False
+                try:
+                    if network_manager.player:
+                        network_manager.stop()
+                except Exception:
+                    pass
+                break
+
         # Fin procesar mensajes del juego...
         ###### SIgo aqui...
             
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                running = False
+                if network_manager.is_host:
+                    msgHostLeft = {
+                        "type": "DESCONEXION",
+                        "playerId": network_manager.player_id,
+                        "playerName": network_manager.playerName,
+                        "reason": "HOST_LEFT"
+                    }
+                    network_manager.broadcast_message(msgHostLeft)
+                    network_manager.stop()
+                else:
+                    if network_manager.player:
+                        msgSalir = {
+                            "type": "SALIR",
+                            "playerId": jugador_local.playerId,
+                            "playerName": jugador_local.playerName
+                        }
+                        network_manager.sendData(msgSalir)
+                        network_manager.stop()
+
+                
+            # #DOBLE CLICK
+            # if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+            #     if getattr(event, "clicks", 1) == 2:
+            #         #Doble click para descartar una carta
+            #         selected_card = None
+            #         for key, rect in cuadros_interactivos.items():
+            #             if key.startswith("Carta_") and rect.collidepoint(event.pos):
+            #                 selected_card = cartas_ref.get(key)
+            #                 break
+            #         jugador_local_descartar = jugador_local
+            #         if selected_card and jugador_local_descartar and not jugador_local_descartar.discarded:
+            #             if selected_card in jugador_local_descartar.playerHand:
+            #                 # Realizar el descarte
+            #                 jugador_local_descartar.playerHand.remove(selected_card)
+            #                 round.discards.insert(0, selected_card)
+            #                 jugador_local_descartar.discarded = True
+                            
+            #                 # Enviar mensaje de descarte a otros jugadores
+            #                 msgDescarte = {
+            #                     "type": "DESCARTE",
+            #                     "playerId": jugador_local_descartar.playerId,
+            #                     "playerHand": jugador_local_descartar.playerHand,
+            #                     "cartas_descartadas": [selected_card],
+            #                     "mazo_descarte": round.discards,    
+            #                     "round": round,
+            #                     "players": players
+            #                 }
+
 
             elif event.type == pygame.VIDEORESIZE:
                 WIDTH, HEIGHT = event.w, event.h
@@ -1678,21 +2096,79 @@ def main(manager_de_red): # <-- Acepta el manager de red
                     from Player import ordenar_mano
                     modo_orden = "Runs" if modo_orden == "Sets" else "Sets"
                     ordenar_mano(jugador_local, modo_orden, WIDTH=WIDTH)
+                    
                     # Sincronizar visual_hand con el nuevo orden de playerHand
                     orden_logico = list(jugador_local.playerHand)
                     visual_hand[:] = [c for c in orden_logico if c in visual_hand]
+                    
                     # Agregar cartas que estén en visual_hand pero no en playerHand (no debería haber)
                     for c in visual_hand:
                         if c not in jugador_local.playerHand:
                             visual_hand.remove(c)
+                            
                     # Reasignar índices visuales
                     for idx_v, carta_v in enumerate(visual_hand):
                         carta_v.id_visual = idx_v
-                    etiqueta_modo = "Sets (Tríos)" if modo_orden == "Sets" else "Runs (Escaleras)"
-                    mensaje_temporal = f"Mano ordenada: {etiqueta_modo}"
+
+                    # ---> NUEVO CÓDIGO DE NOTIFICACIÓN Y SONIDO <---
+                    
+                    # 1. Reproducir el sonido
+                    if 'ordenar_sound' in locals() and ordenar_sound:
+                        try:
+                            ordenar_sound.play()
+                        except:
+                            pass
+                    
+                    # 2. Configurar la notificación visual en pantalla
+                    mensaje_temporal = "Las cartas en mano fueron ordenadas"
                     mensaje_tiempo   = time.time()
+                    
+                    # -----------------------------------------------
+
                     continue   # no procesar más clics en este frame
                 # ─────────────────────────────────────────────────────────────
+
+                # ── [DEV TOOL] BOTÓN CONCLUIR RONDA — solo visible para el Host ──
+                if network_manager.is_host and jugador_local:
+                    _btn_dev_rect = pygame.Rect(WIDTH - 190, HEIGHT - 205, 170, 40)
+                    if _btn_dev_rect.collidepoint(mouse_x, mouse_y):
+                        resultado_dev = _dev_cargar_mano_ganadora(
+                            jugador_local, visual_hand,
+                            cuadros_interactivos, cartas_ref,
+                            roundOne, roundTwo, roundThree, roundFour
+                        )
+                        # ── Reconstrucción visual completa (inline para tener acceso
+                        #    a todas las variables locales de main) ──────────────────
+                        # 1. Limpiar estado de arrastre
+                        dragging = False
+                        carta_arrastrada = None
+                        drag_rect = None
+                        drag_offset_x = 0
+                        # 2. Limpiar cartas ocultas (índices del orden anterior)
+                        cartas_ocultas.clear()
+                        # 3. Limpiar zonas de jugada (no afecta cartas de la mesa de otros)
+                        zona_cartas[0].clear()
+                        zona_cartas[1].clear()
+                        if roundThree or roundFour:
+                            zona_cartas[2].clear()
+                        # 4. Reconstruir visual_hand desde playerHand sin conservar
+                        #    orden anterior (la mano es completamente nueva)
+                        visual_hand.clear()
+                        visual_hand.extend(jugador_local.playerHand)
+                        for idx_v, c_v in enumerate(visual_hand):
+                            c_v.id_visual = idx_v
+                        # 5. Limpiar cuadros_interactivos de Carta_X obsoletos
+                        claves_cartas = [k for k in cuadros_interactivos if k.startswith("Carta_")]
+                        for k in claves_cartas:
+                            del cuadros_interactivos[k]
+                        cartas_ref.clear()
+                        # 6. Habilitar organización
+                        organizar_habilitado = True
+                        # ─────────────────────────────────────────────────────
+                        mensaje_temporal = resultado_dev
+                        mensaje_tiempo = time.time()
+                        continue  # no procesar más clics en este frame
+                # ────────────────────────────────────────────────────────────────
 
                 # 1. Intentar levantar de las zonas de juego (Trios/Seguidillas)
                 # Excluimos el índice de descarte definido arriba
@@ -1817,31 +2293,43 @@ def main(manager_de_red): # <-- Acepta el manager de red
 
                 #Cambio Menu
                 elif nombre == "Menú":
-                    resultado = show_menu_modal(screen, WIDTH, HEIGHT, ASSETS_PATH)
+                    resultado = show_menu_modal(screen, WIDTH, HEIGHT, ASSETS_PATH, ctrl_volumen)
                     if resultado == "resume":
-                        pass  # simplemente se cierra el modal
-                    elif resultado == "config":
-                        print("Abrir configuración (modal futuro)")
+                        pass  # Simplemente se cierra el modal y sigue el juego
+                    
                     elif resultado == "exit":
+                        # ---> NUEVA INTERCEPCIÓN DE CONFIRMACIÓN <---
+                        # Desplegamos la ventana que creamos en el Paso 1
+                        quiere_salir = show_exit_confirmation_modal(screen, WIDTH, HEIGHT, ASSETS_PATH)
+                        
+                        if not quiere_salir:
+                            continue  # Canceló la salida, volvemos al bucle del juego normal sin cerrar nada
+                        
+                        # Si aceptó salir ("SI"), procede con la lógica de desconexión por red.
                         running = False
                         print(f" Jugador antes de salir {jugador_local.playerName}")
-                        #.exit_game(jugador_local.playerId, jugador_local.playerName)
-                        msgSalir = {
-                            "type": "SALIR",
-                            "playerId": jugador_local.playerId,
-                            "playerName": jugador_local.playerName
+
+                        if network_manager.is_host:
+                            msgHostLeft = {
+                                "type": "DESCONEXION",
+                                "playerId": network_manager.player_id,
+                                "playerName": network_manager.playerName,
+                                "reason": "HOST_LEFT"
                             }
-                        #if network_manager.is_host:
-                        #    network_manager.broadcast_message(msgSalir)
-                        #el
-                        if network_manager.player:
-                            network_manager.sendData(msgSalir)
+                            network_manager.broadcast_message(msgHostLeft)
+                            network_manager.stop()
+                        else:
+                            msgSalir = {
+                                "type": "SALIR",
+                                "playerId": jugador_local.playerId,
+                                "playerName": jugador_local.playerName
+                            }
+                            if network_manager.player:
+                                network_manager.sendData(msgSalir)
+                            network_manager.stop()
+
                         time.sleep(2)
-                        #pygame.quit()
                         return
-                #Cambio Menu
-
-
 
                 elif nombre:
                     if nombre == "Tomar carta":
@@ -1954,6 +2442,7 @@ def main(manager_de_red): # <-- Acepta el manager de red
                                 register_taken_card(jugador_local, cardTakenD)
                                 mensaje_temporal = "Tomaste una carta: no puedes descartarla este turno."
                                 mensaje_tiempo = time.time()
+                                mostrar_toast_compra(jugador_local.playerName, "descarte")
                                 #cardTakenInDiscards.append(cardTakenD)
                                 actualizar_indices_visual_hand(visual_hand)
                                 #reiniciar_visual(jugador_local, visual_hand, cuadros_interactivos, cartas_ref)
@@ -2719,6 +3208,7 @@ def main(manager_de_red): # <-- Acepta el manager de red
 
                                             mensaje_temporal = "Has comprado la carta."
                                             mensaje_tiempo = time.time()
+                                            mostrar_toast_compra(jugador_local.playerName, "descarte")
                                         else:
                                             # CASO: COMPRA FALLIDA (ej. propio descarte)
                                             # Resetear variables del ciclo de compra para no quedar atascado
@@ -2978,15 +3468,33 @@ def main(manager_de_red): # <-- Acepta el manager de red
                                     if valido_inicio:
                                         ok = safe_insert_card(jugador_local, target_player, play_index_real, carta_obj, "start", tipo)
                                         if ok: 
-                                            mensaje_temporal = "Insertada exitosamente"
+                                            mensaje_temporal = "La Jugada fue extendida"  # <--- TEXTO CAMBIADO
                                             intentado = True
                                     elif valido_final:
                                         ok = safe_insert_card(jugador_local, target_player, play_index_real, carta_obj, "end", tipo)
                                         if ok: 
-                                            mensaje_temporal = "Insertada exitosamente"
+                                            mensaje_temporal = "La Jugada fue extendida"  # <--- TEXTO CAMBIADO
                                             intentado = True
 
-            
+                                    # --- 4. FINALIZACIÓN Y RED ---
+                                    if intentado:
+                                        mensaje_tiempo = time.time()
+                                        insertado_en_jugada = True
+                                        
+                                        # ---> NUEVO: REPRODUCIR SONIDO AQUÍ <---
+                                        if 'extender_sound' in locals() and extender_sound:
+                                            try:
+                                                extender_sound.play()
+                                            except:
+                                                pass
+                                        # ---------------------------------------
+
+                                        last_inserted_card_data = {
+                                            'target_player': target_player,
+                                            'play_index': play_index_real,
+                                            'card': carta_obj,
+                                            'tipo': tipo # 'trio' o 'straight'
+                                        }
 
                                     # --- 4. FINALIZACIÓN Y RED ---
                                     if intentado:
@@ -3156,7 +3664,7 @@ def main(manager_de_red): # <-- Acepta el manager de red
                                 
 
         elif jugador_local.playerTurn:
-            print(f" AQUI SALIO LA PANTALLITA.... wiiiiiiiii \o/..")
+            print(" AQUI SALIO LA PANTALLITA.... wiiiiiiiii \\o/..")
             
             card_to_show = mazo_descarte[-1] if mazo_descarte else None
             
@@ -3357,6 +3865,7 @@ def main(manager_de_red): # <-- Acepta el manager de red
 
                     mensaje_temporal = "Has comprado la carta."
                     mensaje_tiempo = time.time()
+                    mostrar_toast_compra(jugador_local.playerName, "descarte")
                     print(f"Mensje temporal... {mensaje_temporal}")
                     print(f"Mensje tiempo... {mensaje_tiempo}")
                 else:
@@ -3742,6 +4251,17 @@ def main(manager_de_red): # <-- Acepta el manager de red
                 fg=(255, 255, 255)
             )
 
+        # 5. Botón "CONCLUIR RONDA" — visible solo para el host
+        if network_manager.is_host and jugador_local:
+            btn_concluir_ronda = pygame.Rect(WIDTH - 190, HEIGHT - 205, 170, 40)
+            draw_simple_button(
+                screen, btn_concluir_ronda, "Terminar ronda",
+                get_game_font(10),
+                bg=(130, 40, 40),
+                fg=(255, 255, 255)
+            )
+            cuadros_interactivos["Concluir ronda"] = btn_concluir_ronda
+
         # Intercambiar SÓLO las zonas interactivas: "Descarte" <-> "ZonaCentralInteractiva".
         # Esto cambia solo el mapeo interactivo (donde se debe soltar una carta), no afecta el dibujo.
         '''try:
@@ -3822,7 +4342,7 @@ def main(manager_de_red): # <-- Acepta el manager de red
 
         menu_rect = pygame.Rect(menu_x, menu_y, menu_w, menu_h)
 
-        menu_img_path = os.path.join(ASSETS_PATH, "menu.png")
+        menu_img_path = os.path.join(ASSETS_PATH, "menu_btn.png")
         if os.path.exists(menu_img_path):
             menu_img = pygame.image.load(menu_img_path).convert_alpha()
             img = pygame.transform.smoothscale(menu_img, (menu_rect.width, menu_rect.height))
@@ -4842,7 +5362,21 @@ def main(manager_de_red): # <-- Acepta el manager de red
         if fase == "mostrar_orden":
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
-                    running = False
+                    if confirm_exit_modal(screen, WIDTH, HEIGHT):
+                        try:
+                            if jugador_local:
+                                msgSalir = {
+                                    "type": "SALIR",
+                                    "playerId": jugador_local.playerId,
+                                    "playerName": jugador_local.playerName
+                                }
+                                if network_manager and network_manager.player:
+                                    network_manager.sendData(msgSalir)
+                        except:
+                            pass
+                        running = False
+                    else:
+                        continue
             screen.blit(fondo_img, (0, 0))
 
             # --- RECTÁNGULO DE FONDO GRIS ---
@@ -4903,7 +5437,21 @@ def main(manager_de_red): # <-- Acepta el manager de red
         if fase == "fin1":
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
-                    running = False
+                    if confirm_exit_modal(screen, WIDTH, HEIGHT):
+                        try:
+                            if jugador_local:
+                                msgSalir = {
+                                    "type": "SALIR",
+                                    "playerId": jugador_local.playerId,
+                                    "playerName": jugador_local.playerName
+                                }
+                                if network_manager and network_manager.player:
+                                    network_manager.sendData(msgSalir)
+                        except:
+                            pass
+                        running = False
+                    else:
+                        continue
             screen.blit(fondo_img, (0, 0))
             mostrar_puntuaciones_final(screen, fondo_img, players, WIDTH, HEIGHT, ASSETS_PATH, round_number=1)
             pygame.display.flip()
@@ -4935,7 +5483,21 @@ def main(manager_de_red): # <-- Acepta el manager de red
         if fase == "fin2":
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
-                        running = False
+                        if confirm_exit_modal(screen, WIDTH, HEIGHT):
+                            try:
+                                if jugador_local:
+                                    msgSalir = {
+                                        "type": "SALIR",
+                                        "playerId": jugador_local.playerId,
+                                        "playerName": jugador_local.playerName
+                                    }
+                                    if network_manager and network_manager.player:
+                                        network_manager.sendData(msgSalir)
+                            except:
+                                pass
+                            running = False
+                        else:
+                            continue
                 screen.blit(fondo_img, (0, 0))
                 mostrar_puntuaciones_final(screen, fondo_img, players, WIDTH, HEIGHT, ASSETS_PATH, round_number=2)
                 pygame.display.flip()
@@ -4966,7 +5528,21 @@ def main(manager_de_red): # <-- Acepta el manager de red
         if fase == "fin3":
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
-                        running = False
+                        if confirm_exit_modal(screen, WIDTH, HEIGHT):
+                            try:
+                                if jugador_local:
+                                    msgSalir = {
+                                        "type": "SALIR",
+                                        "playerId": jugador_local.playerId,
+                                        "playerName": jugador_local.playerName
+                                    }
+                                    if network_manager and network_manager.player:
+                                        network_manager.sendData(msgSalir)
+                            except:
+                                pass
+                            running = False
+                        else:
+                            continue
                 screen.blit(fondo_img, (0, 0))
                 mostrar_puntuaciones_final(screen, fondo_img, players, WIDTH, HEIGHT, ASSETS_PATH, round_number=3)
                 pygame.display.flip()
@@ -4996,7 +5572,21 @@ def main(manager_de_red): # <-- Acepta el manager de red
         if fase == "fin4":
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
-                        running = False
+                        if confirm_exit_modal(screen, WIDTH, HEIGHT):
+                            try:
+                                if jugador_local:
+                                    msgSalir = {
+                                        "type": "SALIR",
+                                        "playerId": jugador_local.playerId,
+                                        "playerName": jugador_local.playerName
+                                    }
+                                    if network_manager and network_manager.player:
+                                        network_manager.sendData(msgSalir)
+                            except:
+                                pass
+                            running = False
+                        else:
+                            continue
                 screen.blit(fondo_img, (0, 0))
                 mostrar_puntuacion_final_detallada(screen, fondo_img, players, WIDTH, HEIGHT, ASSETS_PATH, round_number=4)
                 pygame.display.flip()
@@ -5014,7 +5604,21 @@ def main(manager_de_red): # <-- Acepta el manager de red
         if fase == "game_over":
                 for event in pygame.event.get():
                     if event.type == pygame.QUIT:
-                        running = False
+                        if confirm_exit_modal(screen, WIDTH, HEIGHT):
+                            try:
+                                if jugador_local:
+                                    msgSalir = {
+                                        "type": "SALIR",
+                                        "playerId": jugador_local.playerId,
+                                        "playerName": jugador_local.playerName
+                                    }
+                                    if network_manager and network_manager.player:
+                                        network_manager.sendData(msgSalir)
+                            except:
+                                pass
+                            running = False
+                        else:
+                            continue
                 screen.blit(fondo_img, (0, 0))
                 mostrar_ganador_final(screen, fondo_img, players, WIDTH, HEIGHT, ASSETS_PATH)
                 pygame.display.flip()
@@ -5037,7 +5641,7 @@ def main(manager_de_red): # <-- Acepta el manager de red
                 lines.append(cur)
                 return lines
 
-            font_msg = get_game_font(18) 
+            font_msg = get_game_font(28) 
             lines = wrap_preserve_words(mensaje_temporal, 35)
             line_h = font_msg.get_linesize()
             base_x = WIDTH // 2
@@ -5054,9 +5658,9 @@ def main(manager_de_red): # <-- Acepta el manager de red
                 screen.blit(surf, rect)
         elif mensaje_temporal and time.time() - mensaje_tiempo >= 5:
             mensaje_temporal = ""
-        
-        ctrl_volumen.actualizar_y_dibujar()
-        
+
+        dibujar_toast_compra(screen, WIDTH, turno_rect)
+    
         pygame.display.flip()
         pygame.time.Clock().tick(60) # Esto mantiene el juego estable a 60 FPS
     return

@@ -21,11 +21,7 @@ class GameServer:
         self.config = config or NetworkConfig()
         self.server_socket = None
         self.next_player_id = 2  # 1 es el HOST
-        self.game_manager = None
     
-    def set_game_manager(self, game_manager):
-        self.game_manager = game_manager
-        
     def start(self, game_name: str, player_name: str, max_players: int, room_name: str) -> bool:
         """Inicia el servidor TCP."""
         try:
@@ -181,8 +177,6 @@ class GameServer:
                 pass
             self.state.remove_connected_player(player.player_id)
             self._broadcast_players()
-            if self.game_manager:
-                self.game_manager.on_player_disconnect(player.player_id)
             logger.info(f"Handler terminado para {player.name}")
     
     def _broadcast_players(self):
@@ -211,25 +205,35 @@ class GameServer:
             
         elif msg_type == "CHAT":
             logger.debug(f"CHAT de {player.name}: {data.get('mensaje')}")
+            
+            # Formateamos el mensaje y lo metemos a la lista para Pygame
             msgFormat = f"{player.name}: {data.get('mensaje', '')}"
+            
+            # CORRECCIÓN 2: Imprimir en la terminal del Servidor cuando un cliente escribe
+            print(f"\n[CHAT - RECIBIDO EN SERVIDOR] {player.name}: {data.get('mensaje', '')}")
+            
             with self.state._lock_messages:
                 self.state.messagesServer.append(msgFormat)
                 if len(self.state.messagesServer) > 20:
                     self.state.messagesServer.pop(0)
-            # Reenviar CHAT al resto
+            
+            # --- NUEVO: Encender notificación para el HOST ---
+            self.state.has_unread_chat = True  # Activamos el flag en el estado global
+            
+            # Metemos el chat en la cola entrante para que la UI del Host lo lea 
+            # igual que lo hace un cliente normal
+            self.state.add_incoming_message(MessageType.UPDATE_PLAYERS.value, data)
+            
+            # Preparar datos para retransmitir
             data["playerName"] = player.name
+            data["notificar"] = True # --- NUEVO: Flag para los clientes ---
+            
             for p in self.state.get_connected_players():
                 if not p.is_host and p.player_id != player.player_id:
                     try:
                         self.transport.send_atomic(p.conn, data)
                     except:
                         pass
-            return
-        
-        elif msg_type == "SALIR" and player.is_host:
-            # El host está saliendo del juego - desconectar a todos los jugadores
-            logger.info(f"Host {player.name} está saliendo del juego. Desconectando a todos los jugadores...")
-            self._disconnect_all_players()
             return
 
         else:
@@ -249,46 +253,6 @@ class GameServer:
                         logger.debug(f"Retransmitiendo {msg_type} de {player.name} a {p.name}")
                     except Exception as e:
                         logger.warning(f"Error retransmitiendo a {p.name}: {e}")
-    
-    def _disconnect_all_players(self):
-        """Desconecta a todos los jugadores (excluyendo al host) y cierra el servidor."""
-        # Enviar mensaje de desconexión a todos los jugadores
-        disconnect_msg = {
-            "type": "SERVER_SHUTDOWN",
-            "reason": "El host ha abandonado la partida"
-        }
-        
-        # Desconectar a todos los jugadores excepto al host
-        for p in self.state.get_connected_players():
-            if not p.is_host:
-                try:
-                    self.transport.send_atomic(p.conn, disconnect_msg)
-                    p.conn.close()
-                except Exception as e:
-                    logger.warning(f"Error desconectando a {p.name}: {e}")
-        
-        # Limpiar la lista de jugadores (dejar solo al host temporalmente)
-        with self.state._lock_players:
-            self.state.connected_players = [p for p in self.state.connected_players if p.is_host]
-        
-        # Detener el servidor
-        self.stop()
-        
-        # Marcar el estado como desconectado
-        self.state.is_host = False
-        self.state.running = False
-        self.state.game_started = False
-        
-        logger.info("Todos los jugadores han sido desconectados debido a la salida del host")
-    
-    def stop(self):
-        """Detiene el servidor y cierra el socket."""
-        if self.server_socket:
-            try:
-                self.server_socket.close()
-                logger.info("Servidor detenido")
-            except Exception as e:
-                logger.error(f"Error cerrando el socket del servidor: {e}")
     
     def _find_player_by_name(self, name: str):
         """Busca jugador por nombre (usado para reconexiones)."""
