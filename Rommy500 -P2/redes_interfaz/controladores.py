@@ -485,7 +485,84 @@ def Buscar_salas(un_juego,):
     hilo_busqueda.daemon = True
     hilo_busqueda.start()
     print(conexion_salas.conexiones_disponibles)
-    
+
+
+"""Metodos para las actualizaciones en tiempo real"""
+
+# Lista de carteles de notificación activos para apilarlos verticalmente
+_notificaciones_activas = []
+_lock_notificaciones = threading.Lock()
+
+def _mostrar_notificacion_jugador(un_juego, nombre, accion):
+    """Muestra un cartel temporal cuando un jugador se une o desconecta de la sala."""
+    import threading
+    try:
+        from recursos_graficos.elementos_de_interfaz_de_usuario import CartelAlerta
+        from recursos_graficos import constantes as _const
+
+        nombre_mostrar = nombre if nombre else "Jugador"
+        if accion == "unio":
+            mensaje = f"{nombre_mostrar} se unió a la sala"
+        else:
+            mensaje = f"{nombre_mostrar} se desconectó"
+
+        # Determinar en qué superficie mostrar el cartel
+        # Prioridad: mesa de juego activa > sala de espera
+        pantalla = un_juego.pantalla
+        ancho_cartel = 600
+        alto_cartel = 110
+        margen = 10
+        x = (_const.ANCHO_VENTANA - ancho_cartel) // 2
+        y_base = int(_const.ALTO_VENTANA * 0.08)
+        
+        with _lock_notificaciones:
+            slot = len(_notificaciones_activas)
+            y = y_base + slot * (alto_cartel + margen)
+
+        cartel = CartelAlerta(
+            pantalla=pantalla,
+            mensaje=mensaje,
+            x=x,
+            y=y,
+            ancho=ancho_cartel,
+            alto=alto_cartel,
+            mostrar_boton_cerrar=False,
+            duracion_ms=5000
+        )
+
+        # Añadir el cartel al menú activo para que se dibuje
+        menu_activo = None
+        # Preferir la mesa de juego si está activa
+        if hasattr(un_juego, 'mesa') and un_juego.mesa and getattr(un_juego.mesa, 'visible', False):
+            menu_activo = un_juego.mesa
+        elif hasattr(un_juego, 'menu_mesa_espera') and un_juego.menu_mesa_espera and getattr(un_juego.menu_mesa_espera, 'visible', False):
+            menu_activo = un_juego.menu_mesa_espera
+
+        if menu_activo is not None:
+            if not hasattr(menu_activo, 'overlays'):
+                menu_activo.overlays = []
+            menu_activo.overlays.append(cartel)
+            cartel.mostrar()
+            # Ocultar y limpiar automáticamente tras la duración
+            def _quitar():
+                try:
+                    cartel.ocultar()
+                    if cartel in menu_activo.overlays:
+                        menu_activo.overlays.remove(cartel)
+                    with _lock_notificaciones:
+                        if cartel in _notificaciones_activas:
+                            _notificaciones_activas.remove(cartel)
+                        for i, c in enumerate(_notificaciones_activas):
+                            c.rect.y = y_base + i * (alto_cartel + margen)
+                except Exception:
+                    pass
+            threading.Timer(5.2, _quitar).start()
+        else:
+            print(f"[Notificación] {mensaje}")
+    except Exception as e:
+        print(f"Error mostrando notificación de jugador: {e}")
+
+
 """Metodos para las actualizaciones en tiempo real"""
 def modificacion_real_datos(un_juego, evento, constantes):
     global estado_espera_inicio
@@ -497,6 +574,9 @@ def modificacion_real_datos(un_juego, evento, constantes):
     
     if evento.type == constantes.EVENTO_SALAS_ENCONTRADAS:
         un_juego.lista_elementos["salas_disponibles"] = evento.salas
+    
+    if evento.type == constantes.EVENTO_NOTIFICACION_JUGADOR:
+        _mostrar_notificacion_jugador(un_juego, evento.nombre, evento.accion)
     
     # Manejar evento de inicio de partida - versión no bloqueante
     if evento.type == constantes.EVENTO_INICIAR_PARTIDA:
