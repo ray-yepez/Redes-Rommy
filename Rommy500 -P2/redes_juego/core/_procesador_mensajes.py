@@ -18,42 +18,42 @@ class ProcesadorMensajesMixin:
     """Mixin con métodos para procesar mensajes del juego"""
 
     def _ejecutar_limpieza_jugador(self, id_jugador):
-        """Maneja el estado y la persistencia de la desconexión de un jugador"""
+        """Maneja el estado, la persistencia de red y la inyección en la lógica Core"""
         with self.candado:
-            # 1. Evitar doble ejecución si el hilo de lectura y una excepción coinciden
-            if id_jugador - 1 < len(self.clientes) and self.clientes[id_jugador - 1].get("status") == "desconectado":
+            if id_jugador - 1 < len(self.clientes) and self.clientes[id_jugador-1].get("status") == "desconectado":
                 return
 
-            nombre_jugador = self.clientes[id_jugador - 1]['nombre'] if id_jugador - 1 < len(
-                self.clientes) else f"Jugador {id_jugador}"
+            nombre_jugador = self.clientes[id_jugador-1]['nombre'] if id_jugador-1 < len(self.clientes) else f"Jugador {id_jugador}"
             print(f"[Redes] Ejecutando limpieza preventiva para {nombre_jugador} (ID: {id_jugador})")
 
-            # 2. Guardar datos del jugador desconectado en la persistencia del servidor
+            # =====================================================================
+            # INJECCIÓN DE LOGICA CORE: Limpieza de cartas y rebarajado automático
+            # =====================================================================
+            try:
+                # Invocación directa a la lógica de negocio solicitada en el memorándum
+                self.mesa_juego.gestionar_desconexion_jugador(id_jugador, self.manos, self.mazo)
+                print(f"[Redes] Conexión core sincronizada: Cartas de ID {id_jugador} devueltas al mazo.")
+            except Exception as e:
+                print(f"[Redes] Advertencia al inyectar limpieza en Core: {e}")
+            # =====================================================================
+
+            # Guardar datos del jugador desconectado en la persistencia del servidor
             self.jugadores_desconectados[id_jugador] = {
                 'estado_juego': getattr(self, 'estado_juego', None),
                 'nombre': nombre_jugador
             }
 
-            # 3. Validar si el que se fue es el HOST originalmente
             if id_jugador == 1:
-                print("[Redes] Host desconectado de forma crítica. Cerrando servidor de juego...")
-                try:
-                    self.desconectar_servidor()
-                except Exception as e:
-                    print(f"[Redes] Error durante el apagado del servidor: {e}")
+                print("[Redes] Host desconectado. Cerrando servidor de juego...")
+                try: self.desconectar_servidor()
+                except Exception as e: print(f"[Redes] Error en shutdown: {e}")
                 return
 
-            # 4. Cambiar el estatus en la lista interna de conexiones
             if id_jugador - 1 < len(self.clientes):
-                self.clientes[id_jugador - 1]["status"] = "desconectado"
+                self.clientes[id_jugador-1]["status"] = "desconectado"
 
-            # 5. Calcular jugadores activos restantes en la sala de red
-            jugadores_activos = [
-                c['nombre'] for c in self.clientes
-                if c.get('status') != 'desconectado'
-            ]
+            jugadores_activos = [c['nombre'] for c in self.clientes if c.get('status') != 'desconectado']
 
-            # 6. Difundir la baja a los demás jugadores activos de la red
             self.difundir({
                 'type': 'JugadorDesconectado',
                 'id_jugador': id_jugador,
@@ -62,30 +62,11 @@ class ProcesadorMensajesMixin:
                 "lista_jugadores": jugadores_activos
             })
 
-            # =====================================================================
-            # DETECCIÓN DE SALA VACÍA (AUTOMATIZACIÓN DE CIERRE DEL HOST)
-            # =====================================================================
-            # Si solo queda 1 jugador activo y la partida ya estaba en curso, es el Host.
             if len(jugadores_activos) == 1 and getattr(self, 'estado_partida', False):
-                print("[Redes] Todos los clientes abandonaron la partida. Cerrando el servidor por sala vacía...")
-                try:
-                    self.desconectar_servidor()
-                except Exception as e:
-                    print(f"[Redes] Error al cerrar servidor por sala vacía: {e}")
+                print("[Redes] Sala vacía detectada. Cerrando el servidor automáticamente...")
+                try: self.desconectar_servidor()
+                except Exception as e: print(f"[Redes] Error al cerrar por sala vacía: {e}")
                 return
-            # =====================================================================
-
-            # 7. Reabrir sockets de escucha si la partida ya inició (Lógica original de reconexión)
-            if getattr(self, 'estado_partida', False):
-                if getattr(self, 'anunciar_servidor_estado', False) != True:
-                    self.aceptar_conexiones_estado = True
-                    self.anunciar_servidor_estado = True
-
-                    hilo_servidor = threading.Thread(target=self.aceptar_conexiones, daemon=True)
-                    hilo_servidor.start()
-
-                    hilo_anuncio = threading.Thread(target=self.anunciar_servidor, daemon=True)
-                    hilo_anuncio.start()
     
     def _manejar_cliente_mensajes(self, socket_cliente, id_jugador):
         """Procesa todos los mensajes recibidos de un cliente"""
@@ -145,12 +126,6 @@ class ProcesadorMensajesMixin:
                                     'thread': threading.current_thread(),
                                     "status": "activo"
                                 })
-                            # =====================================================================
-                            # PARCHE TEMPORAL DE REDES (Evita la ruptura del hilo del jugador 3)
-                            # =====================================================================
-                                if not hasattr(self, 'puntos_acumulados'):
-                                     self.puntos_acumulados = []  # Inicialización defensiva en la capa de red
-                            #==============================================================================
 
                                 if len(self.puntos_acumulados) > 0:
                                     print(self.puntos_acumulados)
