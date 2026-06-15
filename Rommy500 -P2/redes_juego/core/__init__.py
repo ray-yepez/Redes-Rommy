@@ -1,4 +1,4 @@
-"""Módulo core de redes_juego - Contiene los mixins para funcionalidad de red"""
+
 
 from redes_juego.core._cliente import ClienteMixin
 from redes_juego.core._servidor import ServidorMixin

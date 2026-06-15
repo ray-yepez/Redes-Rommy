@@ -6,6 +6,7 @@ import json
 import time
 import pygame
 from redes_juego import archivo_de_importaciones
+from redes_juego.packets import pack_message, unpack_message, validate_message_schema
 
 importar_desde_carpeta = archivo_de_importaciones.importar_desde_carpeta
 constantes = importar_desde_carpeta(
@@ -49,36 +50,57 @@ class ClienteMixin:
                     'nombre': nombre_jugador
                 }
             print(f"Mensaje enviado: {mensaje}")    
-            self.socket_cliente.sendall((json.dumps(mensaje) + '\n').encode('utf-8'))
+            self.socket_cliente.sendall(pack_message(mensaje))
             self.hilo_recepcion = threading.Thread(target=self._recibir_mensajes)
             self.hilo_recepcion.daemon = True
             self.hilo_recepcion.start()
             return True
         except Exception as e:
-            print(f"Error al conectar al servidor: {e}")
-            return False
-            
+          print(f"Error al conectar al servidor: {e}")
+          return False
     def _recibir_mensajes(self):
-        buffer = ""
+        buffer = b""  # ✅ CAMBIO: usar bytes en lugar de string
         while self.conectado:
             try:
-                data = self.socket_cliente.recv(4096)
-                buffer += data.decode('utf-8')
-                while '\n' in buffer:
-                    mensaje_str, buffer = buffer.split('\n', 1)
-                    if mensaje_str.strip():
-                        mensaje = json.loads(mensaje_str)
-                        self._manejo_mensaje_red(mensaje)
+               data = self.socket_cliente.recv(4096)
+               if not data:
+                  break
+
+               buffer += data
+            
+               # Procesar mensajes completos
+               while True:
+                  mensaje, error = unpack_message(buffer)
+                  if error:
+                     if "insuficiente" in error.lower() or "incompleto" in error.lower():
+                        # Esperar más datos
+                         break
+                     print(f"Error al desempaquetar mensaje: {error}")
+                     # Error grave: descartar buffer
+                     buffer = b""
+                     break
+                
+                  if mensaje is None:
+                     break
+                
+                 # Calcular cuántos bytes consumió el mensaje
+                  json_bytes = json.dumps(mensaje, ensure_ascii=False).encode('utf-8')
+                  bytes_consumidos = 10 + len(json_bytes)
+                  buffer = buffer[bytes_consumidos:]
+                
+                  # Validar esquema del mensaje
+                  valido, error_schema = validate_message_schema(mensaje)
+                  if not valido:
+                    print(f"Esquema inválido: {error_schema}")
+                    continue
+                
+                  self._manejo_mensaje_red(mensaje)
                         
             except Exception as e:
-                print(f"Error al recibir mensaje del servidor: {e}")
-                import traceback
-                traceback.print_exc()
-                break
-                # Intentar reconexión automática
-                if self.id_jugador is not None and self.socket_cliente is not None:
-                    ip_servidor = self.socket_cliente.getpeername()[0]
-                    ##self.intentar_reconexion(ip_servidor)
+             print(f"Error al recibir mensaje del servidor: {e}")
+             import traceback
+             traceback.print_exc()
+             break
 
     def _manejo_mensaje_red(self, mensaje):
         # Método completo para procesar todos los mensajes del servidor
@@ -729,11 +751,12 @@ class ClienteMixin:
             if datos:
                 mensaje.update(datos)
             try:
-                self.socket_cliente.sendall((json.dumps(mensaje) + '\n').encode('utf-8'))
+                 # ✅ CAMBIO: Usar pack_message
+             self.socket_cliente.sendall(pack_message(mensaje))
             except Exception as e:
-                print(f"Error al enviar acción al servidor: {e}")
+             print(f"Error al enviar acción al servidor: {e}")
         else:
-            print("No conectado al servidor, no se puede enviar la acción.")
+           print("No conectado al servidor, no se puede enviar la acción.")
 
     def verificar_conexion_nueva(self,ip_encontrada):
         for x in self.conexiones_disponibles:
@@ -759,22 +782,22 @@ class ClienteMixin:
                 self.tiempo_ultimo_ping = time.perf_counter()
                 mensaje_ping = {"type": "PING"}
                 # Enviamos el ping por el socket del cliente
-                self.socket_cliente.sendall(json.dumps(mensaje_ping).encode('utf-8'))
+                self.socket_cliente.sendall(pack_message(mensaje_ping))
             except Exception as e:
-                pass
-            time.sleep(2) # Envía un ping cada 2 segundos
+              pass
+            time.sleep(2)
     def _handle_pong_latencia(self, mensaje):
         """Manejador para el cálculo de latencia (respuesta del servidor a nuestro PING)"""
         latencia = (time.perf_counter() - self.tiempo_ultimo_ping) * 1000
         print(f">>> Mi latencia al servidor: {latencia:.2f} ms")
         reporte = {"type": "ReporteLatencia", "valor": latencia}
         if hasattr(self, 'socket_cliente') and self.socket_cliente:
-         self.socket_cliente.sendall(json.dumps(reporte).encode('utf-8') + b'\n')
+         self.socket_cliente.sendall(pack_message(reporte))
 
     def _handle_ping_host(self, mensaje):
       """Responde inmediatamente al Host de la partida"""
       if hasattr(self, 'socket_cliente') and self.socket_cliente:
-        self.socket_cliente.sendall(json.dumps({'type': 'PONG_HOST'}).encode('utf-8') + b'\n')
+        self.socket_cliente.sendall(pack_message({'type': 'PONG_HOST'}))
 
     def _handle_activar_heartbeat(self, mensaje):
       """Activa el heartbeat cuando se recibe un mensaje de bienvenida o inicio de partida"""
@@ -791,7 +814,7 @@ class ClienteMixin:
                     'id_jugador': self.id_jugador
                 }
                 # Usar sendall garantiza que todo el buffer baje a la tarjeta de red sin usar sleep
-                self.socket_cliente.sendall((json.dumps(mensaje_desconexion) + '\n').encode('utf-8'))
+                self.socket_cliente.sendall(pack_message(mensaje_desconexion))
 
                 # Cerramos el canal de transmisión (FIN), pero permitimos recibir paquetes residuales
                 self.socket_cliente.shutdown(socket.SHUT_WR)

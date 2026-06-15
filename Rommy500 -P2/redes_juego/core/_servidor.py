@@ -46,6 +46,7 @@ class ServidorMixin:
         print(f"Servidor iniciado en el puerto {self.puerto}, esperando jugadores...")
         
     def hilo_monitoreo_host(self):
+        from redes_juego.packets import pack_message
         while self.ejecutandose:
             time.sleep(5) # El host chequea latencia cada 5 segundos
             with self.candado:
@@ -54,7 +55,7 @@ class ServidorMixin:
                         # Guardamos el tiempo de envío
                         cliente['tiempo_ping_enviado'] = time.perf_counter()
                         try:
-                            cliente['socket'].sendall(json.dumps({'type': 'PING_HOST'}).encode('utf-8') + b'\n')
+                            cliente['socket'].sendall(pack_message({'type': 'PING_HOST'}))
                         except:
                             cliente['status'] = 'desconectado'
     
