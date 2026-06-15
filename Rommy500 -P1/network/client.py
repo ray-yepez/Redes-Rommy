@@ -129,6 +129,9 @@ class GameClient:
             self.state.msgStartGame.update(data)
             self.state.receivedData = data
             self.state.add_incoming_message(msg_type, data)
+        elif msg_type == "NOTICE":
+            self.state.mensaje = data.get('mensaje', '')
+            self.state.tiempoDelMensaje = data.get('timestamp', time.time() )
         elif msg_type == "CHAT":
             # Extraemos el nombre del jugador (por defecto usamos el propio si el dato llega vacío)
             sender = data.get("playerName") or self.state.playerName
@@ -176,10 +179,13 @@ class GameClient:
             # Jugadas que el Cliente recibe (retransmitidas por el servidor)
             self.state.add_move(data, server=False)
         elif msg_type == MessageType.PLAYER_ORDER.value:
-            # PLAYER_ORDER es especial: va a incoming_messages para que ui1.py lo lea
+            # PLAYER_ORDER es especial: va a incoming_messages para que ui2.py lo lea
             self.state.receivedData = data
             self.state.add_incoming_message(msg_type, data)
         elif msg_type == MessageType.UPDATE_PLAYERS.value:
+            players = data.get("players")
+            if players is not None:
+                self.state.current_player_count = len(players)
             self.state.receivedData = data
             self.state.add_incoming_message(msg_type, data)
         else:

@@ -58,6 +58,8 @@ class NetworkState:
         self.connected_players: List[ConnectedPlayer] = []
         self.last_activity = {}  # {player_id: timestamp_float}
         
+        self.current_player_count = None
+        
         logger.info("NetworkState inicializado de forma segura.")
     
     def add_incoming_message(self, msg_type: str, data: dict = None):

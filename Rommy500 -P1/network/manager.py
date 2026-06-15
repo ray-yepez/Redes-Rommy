@@ -229,8 +229,12 @@ class NetworkManager:
                 'password': self.state.password,
                 'currentPlayers': len(self.state.get_connected_players())
             }
-        return getattr(self, '_current_server', None)
-
+        server = getattr(self, '_current_server', None)
+        if server is not None and self.state.current_player_count is not None:
+            server = dict(server)
+            server['currentPlayers'] = self.state.current_player_count
+        return server
+    
     def get_exit_gameServer(self):
         """Devuelve y borra la lista de mensajes de salir/desconexion del juego."""
         # TODO: Implementar estado real si ui2.py lo demanda, por ahora lista vacía

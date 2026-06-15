@@ -137,7 +137,7 @@ class GameServer:
                     pass
                 
                 self._broadcast_players()
-                
+                self._broadcast_notice(f"{player_name} se ha unido a la sala")
                 # Hilo manejador para este jugador
                 threading.Thread(
                     target=self._handle_player,
@@ -191,6 +191,16 @@ class GameServer:
         """Notifica a todos los clientes la nueva lista de jugadores."""
         serializable_players = [(p.addr, p.name, p.player_id) for p in self.state.get_connected_players()]
         message = {"type": "UPDATE_PLAYERS", "players": serializable_players}
+        for p in self.state.get_connected_players():
+            if not p.is_host:
+                try:
+                    self.transport.send_atomic(p.conn, message)
+                except:
+                    pass
+    
+    def _broadcast_notice(self, mensaje: str):
+        """Envia un aviso a todos los clientes conectados, poara que también les aparezca el popup del aviso de conexión (No solo al HOST)"""
+        message = {"type": "NOTICE", "mensaje": mensaje, "timestamp": time.time()}
         for p in self.state.get_connected_players():
             if not p.is_host:
                 try:
