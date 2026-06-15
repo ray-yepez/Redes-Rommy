@@ -16,14 +16,93 @@ Carta = importar_desde_carpeta(
 
 class ProcesadorMensajesMixin:
     """Mixin con métodos para procesar mensajes del juego"""
+
+    def _ejecutar_limpieza_jugador(self, id_jugador):
+        """Maneja el estado y la persistencia de la desconexión de un jugador"""
+        with self.candado:
+            # 1. Evitar doble ejecución si el hilo de lectura y una excepción coinciden
+            if id_jugador - 1 < len(self.clientes) and self.clientes[id_jugador - 1].get("status") == "desconectado":
+                return
+
+            nombre_jugador = self.clientes[id_jugador - 1]['nombre'] if id_jugador - 1 < len(
+                self.clientes) else f"Jugador {id_jugador}"
+            print(f"[Redes] Ejecutando limpieza preventiva para {nombre_jugador} (ID: {id_jugador})")
+
+            # 2. Guardar datos del jugador desconectado en la persistencia del servidor
+            self.jugadores_desconectados[id_jugador] = {
+                'estado_juego': getattr(self, 'estado_juego', None),
+                'nombre': nombre_jugador
+            }
+
+            # 3. Validar si el que se fue es el HOST originalmente
+            if id_jugador == 1:
+                print("[Redes] Host desconectado de forma crítica. Cerrando servidor de juego...")
+                try:
+                    self.desconectar_servidor()
+                except Exception as e:
+                    print(f"[Redes] Error durante el apagado del servidor: {e}")
+                return
+
+            # 4. Cambiar el estatus en la lista interna de conexiones
+            if id_jugador - 1 < len(self.clientes):
+                self.clientes[id_jugador - 1]["status"] = "desconectado"
+
+            # 5. Calcular jugadores activos restantes en la sala de red
+            jugadores_activos = [
+                c['nombre'] for c in self.clientes
+                if c.get('status') != 'desconectado'
+            ]
+
+            # 6. Difundir la baja a los demás jugadores activos de la red
+            self.difundir({
+                'type': 'JugadorDesconectado',
+                'id_jugador': id_jugador,
+                'TotalJugadores': len(jugadores_activos),
+                "nombre": nombre_jugador,
+                "lista_jugadores": jugadores_activos
+            })
+
+            # =====================================================================
+            # DETECCIÓN DE SALA VACÍA (AUTOMATIZACIÓN DE CIERRE DEL HOST)
+            # =====================================================================
+            # Si solo queda 1 jugador activo y la partida ya estaba en curso, es el Host.
+            if len(jugadores_activos) == 1 and getattr(self, 'estado_partida', False):
+                print("[Redes] Todos los clientes abandonaron la partida. Cerrando el servidor por sala vacía...")
+                try:
+                    self.desconectar_servidor()
+                except Exception as e:
+                    print(f"[Redes] Error al cerrar servidor por sala vacía: {e}")
+                return
+            # =====================================================================
+
+            # 7. Reabrir sockets de escucha si la partida ya inició (Lógica original de reconexión)
+            if getattr(self, 'estado_partida', False):
+                if getattr(self, 'anunciar_servidor_estado', False) != True:
+                    self.aceptar_conexiones_estado = True
+                    self.anunciar_servidor_estado = True
+
+                    hilo_servidor = threading.Thread(target=self.aceptar_conexiones, daemon=True)
+                    hilo_servidor.start()
+
+                    hilo_anuncio = threading.Thread(target=self.anunciar_servidor, daemon=True)
+                    hilo_anuncio.start()
     
     def _manejar_cliente_mensajes(self, socket_cliente, id_jugador):
         """Procesa todos los mensajes recibidos de un cliente"""
         try:
             while self.ejecutandose:
-                data = socket_cliente.recv(4096)
-                if not data:
-                    break
+                try:
+                    data = socket_cliente.recv(4096)
+                    if not data:
+                        # Si recv retorna bytes vacíos, el cliente hizo un cierre limpio (close)
+                        print(f"[Redes] Socket cerrado limpiamente por el cliente {id_jugador}.")
+                        break
+                except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError) as e:
+                    print(f"[Redes] Ruptura de socket detectada en cliente {id_jugador}: {e}")
+                    break # Salimos del bucle para ir al bloque finally
+                except socket.timeout:
+                    continue
+
                 cadena_datos = data.decode('utf-8').strip()
                 if not cadena_datos: 
                     continue
@@ -52,48 +131,7 @@ class ProcesadorMensajesMixin:
                 nombre_jugador = mensaje.get('nombre', f'Jugador{id_jugador}')
                 with self.candado:
                     self.cola_mensajes.append((id_jugador, mensaje))
-                    
-                    if mensaje.get('type') == 'ClienteDesconectado':
-                        print(f"Mensaje del cliente: {mensaje}")
-                        # Guardar datos del jugador desconectado
-                        self.jugadores_desconectados[id_jugador] = {
-                            'estado_juego': self.estado_juego,
-                            'nombre': self.clientes[id_jugador-1]['nombre'] if id_jugador-1 < len(self.clientes) else nombre_jugador
-                        }
-                        print(self.clientes)
 
-                        if id_jugador == 1:
-                            print("Host desconectado, desconectando a todos los jugadores...")
-                            try:
-                                self.desconectar_servidor()
-                            except Exception as e:
-                                print(f"Error durante shutdown: {e}")
-                            return
-                        
-                        self.difundir({
-                            'type': 'JugadorDesconectado',
-                            'id_jugador': id_jugador,
-                            'TotalJugadores': len(self.clientes),
-                            "nombre": self.clientes[id_jugador-1]['nombre'] if id_jugador-1 < len(self.clientes) else nombre_jugador,
-                            "lista_jugadores": [c['nombre'] for c in self.clientes]
-                        })
-                        print(f"cantidad de clietnes{self.clientes}")
-
-                        print(self.jugadores_desconectados)
-                        self.clientes[id_jugador-1]["status"] = "desconectado"
-                        
-                        if self.estado_partida:
-                            if self.anunciar_servidor_estado != True:
-                                self.aceptar_conexiones_estado = True
-                                self.anunciar_servidor_estado = False
-                                self.anunciar_servidor_estado = True
-                                hilo_servidor = threading.Thread(target=self.aceptar_conexiones)
-                                hilo_servidor.daemon = True
-                                hilo_servidor.start()
-                                
-                                hilo_anuncio = threading.Thread(target=self.anunciar_servidor)
-                                hilo_anuncio.daemon = True
-                                hilo_anuncio.start()
                     if mensaje.get('type') == 'Reconectar':
                         # Procesar reconexión
                         id_jugador_reconectar = mensaje.get('id_jugador')
@@ -107,6 +145,13 @@ class ProcesadorMensajesMixin:
                                     'thread': threading.current_thread(),
                                     "status": "activo"
                                 })
+                            # =====================================================================
+                            # PARCHE TEMPORAL DE REDES (Evita la ruptura del hilo del jugador 3)
+                            # =====================================================================
+                                if not hasattr(self, 'puntos_acumulados'):
+                                     self.puntos_acumulados = []  # Inicialización defensiva en la capa de red
+                            #==============================================================================
+
                                 if len(self.puntos_acumulados) > 0:
                                     print(self.puntos_acumulados)
                                     try:
@@ -1352,11 +1397,16 @@ class ProcesadorMensajesMixin:
                         except Exception as e:
                             print(f"[CheatSync] Error actualizando mano cheat en servidor: {e}")
 
-        except Exception as e:
-            print(f" ERROR en cliente al procesar mensaje {mensaje.get('type')}: {e}")
-            print(f" Mensaje completo: {mensaje}")
-            import traceback
-            traceback.print_exc()  # Esto da la línea EXACTA del error
-        finally:
-                pass
 
+        except Exception as e:
+            print(f"[Redes] Excepción crítica no controlada en hilo de cliente {id_jugador}: {e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            # Aquí es donde ocurre la magia del aislamiento arquitectónico
+            print(f"[Redes] Cerrando descriptor de socket e hilos de red para jugador {id_jugador}")
+            self._ejecutar_limpieza_jugador(id_jugador)
+            try:
+                socket_cliente.close()
+            except:
+                pass

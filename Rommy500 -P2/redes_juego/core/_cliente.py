@@ -782,7 +782,7 @@ class ClienteMixin:
         self.iniciar_heartbeat()
 
     def desconectar_cliente(self):
-        """Cierra la conexión del cliente"""
+        """Cierra la conexión del cliente de forma ordenada (Graceful Shutdown)"""
         self.conectado = False
         if self.socket_cliente and self.id_jugador is not None:
             try:
@@ -790,17 +790,21 @@ class ClienteMixin:
                     'type': 'ClienteDesconectado',
                     'id_jugador': self.id_jugador
                 }
-                self.socket_cliente.send(json.dumps(mensaje_desconexion).encode('utf-8'))
-                time.sleep(2)
-            except Exception as e:
-                print(f"Error al notificar al servidor sobre la desconexión: {e}")
+                # Usar sendall garantiza que todo el buffer baje a la tarjeta de red sin usar sleep
+                self.socket_cliente.sendall((json.dumps(mensaje_desconexion) + '\n').encode('utf-8'))
+
+                # Cerramos el canal de transmisión (FIN), pero permitimos recibir paquetes residuales
+                self.socket_cliente.shutdown(socket.SHUT_WR)
+            except (OSError, BrokenPipeError) as e:
+                print(f"[Redes] El socket ya estaba roto al intentar notificar salida: {e}")
             finally:
                 try:
-                    self.socket_cliente.shutdown(socket.SHUT_RDWR)
+                    self.socket_cliente.close()
                 except Exception:
                     pass
-                self.socket_cliente.close()
                 self.socket_cliente = None
+
+                # Notificación local a la interfaz (fuera de la capa de red)
                 if hasattr(self, '_manejo_mensaje_red'):
                     self._manejo_mensaje_red({
                         'type': 'JugadorDesconectado',
@@ -808,12 +812,10 @@ class ClienteMixin:
                         'TotalJugadores': len(self.clientes) if hasattr(self, 'clientes') else 0
                     })
         else:
-            print("Socket cliente no existe o ID de jugador no asignado")
-            print(f"Socket cliente: {self.socket_cliente}, ID jugador: {self.id_jugador}")
+            print("[Redes] Socket cliente no existe o ID de jugador no asignado")
 
-        # Cerrar hilo de recepción del cliente
         if self.hilo_recepcion and threading.current_thread() != self.hilo_recepcion:
-            self.hilo_recepcion.join()
+            self.hilo_recepcion.join(timeout=1.0) # Evitar bloqueos infinitos
 
     def desconectar_servidor(self):
         """Cierra el servidor y notifica a los clientes"""
