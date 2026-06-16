@@ -25,7 +25,7 @@ class NetworkManager:
     
     # === Métodos públicos (INTERFAZ COMPATIBLE) ===
     
-    def start_server(self, nameHost, password, max_players, nameSala):
+    def start_server(self, nameHost, password, max_players, nameSala="Sala Local"):
         """Inicia servidor.
         
         nameHost: nombre del jugador host (se muestra en el juego)
@@ -172,7 +172,7 @@ class NetworkManager:
     
     @msgStartGame.setter
     def msgStartGame(self, value):
-         self.state.msgStartGame = value
+        self.state.msgStartGame = value
 
     @property
     def game_started(self):
@@ -181,7 +181,7 @@ class NetworkManager:
     @game_started.setter
     def game_started(self, value):
         self.state.game_started = value
-         
+        
     # --- Propiedades adiccionales para ui.py ---
     @property
     def lock(self):
@@ -229,8 +229,12 @@ class NetworkManager:
                 'password': self.state.password,
                 'currentPlayers': len(self.state.get_connected_players())
             }
-        return getattr(self, '_current_server', None)
-
+        server = getattr(self, '_current_server', None)
+        if server is not None and self.state.current_player_count is not None:
+            server = dict(server)
+            server['currentPlayers'] = self.state.current_player_count
+        return server
+    
     def get_exit_gameServer(self):
         """Devuelve y borra la lista de mensajes de salir/desconexion del juego."""
         # TODO: Implementar estado real si ui2.py lo demanda, por ahora lista vacía
@@ -274,10 +278,46 @@ class NetworkManager:
                 print(f"{str(clave).rjust(15)}: {valor}")
         else:
             return False
+    # === GESTOR DE CHAT Y NOTIFICACIONES ===
 
-    #Aquí obtenemos el mensaje y el tiempo del mensaje para que ui.py pueda leerlos directamente desde el manager, 
-    #sin necesidad de acceder al state (porque el state es más interno y no se puede acceder directamente desde ui.py)
-    #saludeishon :3
+    # === GESTOR DE CHAT Y NOTIFICACIONES ===
+
+    def send_chat_message(self, mensaje: str):
+        """Estructura el JSON del chat y lo envía a la red."""
+        msg_data = {
+            "type": "CHAT",
+            "playerName": self.state.playerName, 
+            "mensaje": mensaje,
+            "notificar": True # Flag de aviso para los receptores
+        }
+        
+        if self.state.is_host:
+            # CORRECCIÓN 1: Cambiamos el nombre del Host por "Tú" para su propia UI
+            msgFormat = f"Tú: {mensaje}"
+            
+            # CORRECCIÓN 2: Imprimir directamente en la terminal del Servidor
+            print(f"\n[CHAT - LOCAL (HOST)] Tú: {mensaje}")
+            
+            with self.state._lock_messages:
+                self.state.messagesServer.append(msgFormat)
+                if len(self.state.messagesServer) > 20:
+                    self.state.messagesServer.pop(0)
+            
+            # Y luego lo retransmite al resto de jugadores
+            self.broadcast_message(msg_data)
+        else:
+            # Los clientes normales simplemente se lo envían al Host
+            self.sendData(msg_data)
+
+    @property
+    def needs_chat_notification(self) -> bool:
+        """La UI puede consultar esta propiedad en cada frame para dibujar el ícono."""
+        return self.state.has_unread_chat
+        
+    def clear_chat_notification(self):
+        """Llama a este método justo en el evento donde el jugador abre el chat."""
+        self.state.has_unread_chat = False
+        
     @property
     def mensaje(self):
         return getattr(self.state, 'mensaje', '')

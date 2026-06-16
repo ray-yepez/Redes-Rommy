@@ -15,6 +15,7 @@ class Transport:
     """Capa de transporte: envío/recepción confiable con pickle."""
     
     def __init__(self, config=None):
+        
         self.config = config or DEFAULT_CONFIG
     
     def send_atomic(self, sock: socket.socket, data: Any) -> bool:
@@ -94,7 +95,6 @@ class Transport:
             try:
                 chunk = sock.recv(n - len(data))
                 if not chunk:
-                    logger.warning("Socket cerrado remotamente")
                     return None
                 data += chunk
                 retries = 0

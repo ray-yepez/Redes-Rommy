@@ -140,7 +140,7 @@ class MenuSeleccionSalaMixin:
         """
         # 1. Definir un alto fijo para ambos botones en píxeles
         # Prueba con 120 para ver cuál se ajusta mejor a tu diseño
-        ALTO_FIJO_BOTONES = 120 
+        ALTO_FIJO_BOTONES = 85 
 
         # Configuración de posiciones relativas
         y_relativa = (constantes.ALTO_MENU_SELECCION_SALA - constantes.ELEMENTO_MEDIANO_ALTO) * 0.9
@@ -151,19 +151,22 @@ class MenuSeleccionSalaMixin:
                 "texto": "VOLVER",
                 "archivo": "boton_volver.png",
                 "accion": lambda: controladores.Mostrar_seccion(self, self.menu_nombre_usuario),
-                "x_inc": 0.3
+                "x_inc": 0.35,
+                "y_inc": 1.05
             },
             {
                 "texto": "ACTUALIZAR",
-                "archivo": "b_unirse_sala.png", # Este es el que se veía diferente
+                "archivo": "boton_actualizar.png", 
                 "accion": lambda: self.actualizar_lista_salas(),
-                "x_inc": 0.75
+                "x_inc": 0.75,
+                "y_inc": 1.05
             }
         ]
 
         for datos in datos_botones:
             # 2. Crear el botón base
             x_relativa = x_base * datos["x_inc"]
+            y_boton = y_relativa * datos["y_inc"]
             boton = menu.crear_elemento(
                 x=x_relativa,
                 y=y_relativa,
@@ -202,7 +205,7 @@ class MenuSeleccionSalaMixin:
 
                 # Posicionamiento absoluto
                 x_absoluto = menu.x + x_relativa
-                y_absoluto = menu.y + y_relativa
+                y_absoluto = menu.y + y_boton
 
                 boton.x = int(x_absoluto)
                 boton.y = int(y_absoluto)
@@ -233,12 +236,27 @@ class MenuSeleccionSalaMixin:
                 print(f"Error cargando imagen {datos['archivo']}: {e}")
 
     def actualizar_lista_salas(self):
-        """Refresca la lista de salas disponibles recreando el menú"""
+        """Refresca la lista de salas disponibles pidiendo nueva búsqueda"""
         print("Actualizando lista de salas...")
-        # Remover el menú actual
+
+        # 1. Limpiar salas viejas
+        self.lista_elementos["salas_disponibles"] = []
+
+        # 2. Reactivar buscador de salas
+        try:
+            controladores.conexion_salas.buscador = True
+        except Exception as e:
+            print(f"No se pudo reactivar buscador de salas: {e}")
+
+        # 3. Volver a lanzar búsqueda si existe Buscar_salas
+        try:
+            controladores.Buscar_salas(self)
+        except Exception as e:
+            print(f"No se pudo reiniciar búsqueda de salas: {e}")
+
+        # 4. Mostrar temporalmente el menú vacío/actualizando
         if hasattr(self, "menu_seleccion_sala") and self.menu_seleccion_sala in self.elementos_creados:
             self.elementos_creados.remove(self.menu_seleccion_sala)
-    
-        # Crear nuevo menú con salas actualizadas
+
         self.menu_seleccion_sala = self.Menu_seleccion_sala()
         controladores.Mostrar_seccion(self, self.menu_seleccion_sala)

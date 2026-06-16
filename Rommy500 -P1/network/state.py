@@ -31,6 +31,9 @@ class NetworkState:
         self.running_broadcast = False
         self.is_host = False
         self.game_started = False
+        self.host_disconnected = False
+        # --- NUEVO: Estado de notificaciones de chat ---
+        self.has_unread_chat = False
         
         # Datos del cliente / servidor local
         self.player_id = None
@@ -54,6 +57,8 @@ class NetworkState:
         # Estado de jugadores en partida
         self.connected_players: List[ConnectedPlayer] = []
         self.last_activity = {}  # {player_id: timestamp_float}
+        
+        self.current_player_count = None
         
         logger.info("NetworkState inicializado de forma segura.")
     

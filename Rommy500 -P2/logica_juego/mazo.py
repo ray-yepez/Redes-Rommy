@@ -93,12 +93,12 @@ class Mazo:
         for etiqueta, mano in items:
             if len(mano) != cartas_por_jugador:
                 print(
-                    f"[Mazo.validar_manos] ✗ Jugador {etiqueta} tiene "
+                    f"[Mazo.validar_manos] [ERROR] Jugador {etiqueta} tiene "
                     f"{len(mano)} cartas (se esperaban {cartas_por_jugador})."
                 )
                 ok = False
             else:
-                print(f"[Mazo.validar_manos] ✓ Jugador {etiqueta}: {cartas_por_jugador} cartas.")
+                print(f"[Mazo.validar_manos] [OK] Jugador {etiqueta}: {cartas_por_jugador} cartas.")
 
         # 2. Sin duplicados entre manos
         vistas = {}
@@ -107,7 +107,7 @@ class Mazo:
                 clave = str(carta)
                 if clave in vistas:
                     print(
-                        f"[Mazo.validar_manos] ✗ Carta duplicada '{clave}' "
+                        f"[Mazo.validar_manos] [ERROR] Carta duplicada '{clave}' "
                         f"en jugador {etiqueta} y jugador {vistas[clave]}."
                     )
                     ok = False
@@ -115,7 +115,7 @@ class Mazo:
                     vistas[clave] = etiqueta
 
         if ok:
-            print("[Mazo.validar_manos] ✓ Todas las manos son correctas.")
+            print("[Mazo.validar_manos] [OK] Todas las manos son correctas.")
         return ok
 
     # ── Repartición principal (modo local / lista) ────────────────────────

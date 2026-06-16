@@ -10,10 +10,48 @@ class Mesa:
     quema = []
     cartas_mesa = []
     jugadores_primera_jugada = []
-    
+
+    # --- NUEVAS VARIABLES GLOBALES DE JUEGO (PERSISTENCIA Y RED) ---
+    puntos_acumulados = {}
+    estado_jugadores = {}
 
     def __init__(self):
         pass
+
+    @classmethod
+    def inicializar_estado_red(cls, lista_jugadores_objetos):
+        """
+        Inicializa los estados y puntuaciones previo al handshake del servidor.
+        Soluciona el AttributeError en mensajería.
+        """
+        cls.puntos_acumulados.clear()
+        cls.estado_jugadores.clear()
+        for j in lista_jugadores_objetos:
+            cls.puntos_acumulados[j.nro_jugador] = 0
+            cls.estado_jugadores[j.nro_jugador] = True  # True = Activo, False = Desconectado
+
+    @classmethod
+    def gestionar_desconexion_jugador(cls, id_jugador, manos_dict, mazo):
+        """
+        Limpia las entidades y devuelve las cartas a la baraja cuando ocurre un Drop.
+        """
+        print(f"\n[Mesa] AISLAMIENTO: Procesando desconexión del jugador ID {id_jugador}...")
+
+        # 1. Actualizar estatus para saltar turno automáticamente
+        cls.estado_jugadores[id_jugador] = False
+
+        # 2. Devolver cartas al mazo cerrado y vaciar su mano virtual
+        if id_jugador in manos_dict:
+            cartas_huerfanas = manos_dict[id_jugador]
+            if cartas_huerfanas:
+                print(f"[Mesa] Reincorporando {len(cartas_huerfanas)} cartas al mazo general.")
+                mazo.cartas.extend(cartas_huerfanas)
+                manos_dict[id_jugador] = []
+
+                # Barajar el mazo para distribuir la aleatoriedad de las cartas reingresadas
+                mazo.revolver_mazo()
+
+        print(f"[Mesa] Limpieza del jugador {id_jugador} completada.")
 
     @classmethod
     def normalizar(cls, texto):
@@ -451,6 +489,11 @@ class Mesa:
 
         while not ronda_terminada:
             for i, jugador in enumerate(jugadores):
+                # ─── INYECTAR AQUÍ: VALIDACIÓN DE JUGADOR ACTIVO ──────────────────
+                if not cls.estado_jugadores.get(jugador.nro_jugador, True):
+                    print(f"\n[Turno Saltado] El jugador {jugador.nombre_jugador} está desconectado.")
+                    continue
+                 # ──────────────────────────────────────────────────────────────────
                 mano_actual = manos[i]
 
                 if jugador in cls.jugadores_primera_jugada:

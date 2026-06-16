@@ -32,6 +32,9 @@ class ServidorMixin:
         hilo_servidor.daemon = True
         hilo_servidor.start()
         
+        hilo_monitoreo = threading.Thread(target=self.hilo_monitoreo_host, daemon=True)
+        hilo_monitoreo.start()
+        
         hilo_anuncio = threading.Thread(target=self.anunciar_servidor)
         hilo_anuncio.daemon = True
         hilo_anuncio.start()
@@ -41,6 +44,20 @@ class ServidorMixin:
         hilo_procesar.start()
 
         print(f"Servidor iniciado en el puerto {self.puerto}, esperando jugadores...")
+        
+    def hilo_monitoreo_host(self):
+        from redes_juego.packets import pack_message
+        while self.ejecutandose:
+            time.sleep(5) # El host chequea latencia cada 5 segundos
+            with self.candado:
+                for cliente in self.clientes:
+                    if cliente['status'] == 'activo':
+                        # Guardamos el tiempo de envío
+                        cliente['tiempo_ping_enviado'] = time.perf_counter()
+                        try:
+                            cliente['socket'].sendall(pack_message({'type': 'PING_HOST'}))
+                        except:
+                            cliente['status'] = 'desconectado'
     
     def aceptar_conexiones(self):
         while self.aceptar_conexiones_estado:
@@ -79,9 +96,23 @@ class ServidorMixin:
                 })
             except Exception as e:
                 print(f"Error al notificar a cliente sobre el cierre del servidor: {e}")
-            self.socket_servidor.close()
-            self.socket_servidor = None
+
+            with self.candado:
+                for cliente in self.clientes:
+                    try:
+                        cliente['socket'].shutdown(socket.SHUT_RDWR)
+                        cliente['socket'].close()
+                    except Exception as e:
+                        print(f"Error cerrando socket de cliente {cliente['id']}: {e}")
+                self.clientes = []
+
+            try:
+                self.socket_servidor.close()
+            except Exception as e:
+                print(f"Error cerrando socket del servidor: {e}")
     
+            self.socket_servidor = None
+
     def _eliminar_cliente(self, id_jugador):
         with self.candado:
             clientes_a_eliminar = [c for c in self.clientes if c['id'] == id_jugador]
