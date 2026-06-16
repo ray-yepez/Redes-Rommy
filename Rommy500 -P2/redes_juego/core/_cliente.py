@@ -136,13 +136,6 @@ class ClienteMixin:
                 if mensaje.get('lista_jugadores') != nueva_lista:
                     evento_py = pygame.event.Event(constantes.EVENTO_NUEVO_JUGADOR,nueva_lista =mensaje.get('lista_jugadores'))
                     pygame.event.post(evento_py)
-                # Notificación visual
-                evento_notif = pygame.event.Event(
-                    constantes.EVENTO_NOTIFICACION_JUGADOR,
-                    nombre=nombre,
-                    accion="desconecto"
-                )
-                pygame.event.post(evento_notif)
         elif mensaje['type'] == 'ServidorCerrado':
             print("El servidor ha cerrado la conexión.")
         elif mensaje["type"] == "ManoInicial":

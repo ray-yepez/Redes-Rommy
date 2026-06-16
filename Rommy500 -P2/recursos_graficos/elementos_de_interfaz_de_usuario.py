@@ -623,6 +623,7 @@ class EntradaTexto(BotonRadio):
             pygame.draw.line(self.pantalla, self.color_texto, (x_cursor, y_inicio), (x_cursor, y_fin), 2)
     def verificar_hover(self, posicion_raton):
         return super().verificar_hover(posicion_raton)
+
 class CartelAlerta:
     def __init__(self, pantalla, mensaje, x, y, ancho=500, alto=300, mostrar_boton_cerrar=True, duracion_ms=None): #====Jesua: añadido mostrar_boton_cerrar para la alerta de ronda finalizada, duracion_ms para temporizacion
             self.pantalla = pantalla
@@ -808,6 +809,48 @@ class CartelAlerta:
         self.esta_hover = self.boton_cerrar_rect.collidepoint(posicion_raton)
         
         return self.esta_hover != estaba_hover
+
+class CartelNotificacion(CartelAlerta):
+    """Variante de CartelAlerta para avisos tipo 'toast' (ej. jugador se unió/desconectó).
+    A diferencia de CartelAlerta, NO dibuja un overlay semitransparente que oscurece
+    toda la pantalla, ya que estos avisos no son modales y pueden mostrarse varios
+    a la vez, apilados verticalmente."""
+
+    def dibujar(self):
+        if not self.visible:
+            return
+
+        # Verificar si debe ocultarse automáticamente
+        if self.duracion_ms is not None and self.tiempo_mostrado is not None:
+            tiempo_actual = pygame.time.get_ticks()
+            if tiempo_actual - self.tiempo_mostrado >= self.duracion_ms:
+                self.ocultar()
+                return
+
+        # Sombra sutil
+        rect_sombra = self.rect.copy()
+        rect_sombra.x += 6
+        rect_sombra.y += 6
+        pygame.draw.rect(self.pantalla, (0, 0, 0, 100), rect_sombra, border_radius=self.radio_borde)
+
+        # Fondo y borde
+        pygame.draw.rect(self.pantalla, self.color_fondo, self.rect, border_radius=self.radio_borde)
+        pygame.draw.rect(self.pantalla, self.color_borde, self.rect, self.grosor_borde, border_radius=self.radio_borde)
+
+        # Texto centrado
+        total_text_height = 0
+        text_surfaces = []
+        for linea in self.lineas:
+            surface = self.fuente.render(linea, True, self.color_texto)
+            text_surfaces.append(surface)
+            total_text_height += surface.get_height()
+        total_text_height += 5 * (len(self.lineas) - 1)
+
+        y_texto = self.rect.y + (self.alto - total_text_height) // 2
+        for surface in text_surfaces:
+            x_texto = self.rect.x + (self.ancho - surface.get_width()) // 2
+            self.pantalla.blit(surface, (x_texto, y_texto))
+            y_texto += surface.get_height() + 5
 
 class BotonRadioImagenes(BotonRadio):
     """

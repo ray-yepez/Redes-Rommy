@@ -486,6 +486,7 @@ def Buscar_salas(un_juego,):
     hilo_busqueda.start()
     print(conexion_salas.conexiones_disponibles)
     
+
 """Metodos para las actualizaciones en tiempo real"""
 
 # Lista de carteles de notificación activos para apilarlos verticalmente
@@ -493,10 +494,11 @@ _notificaciones_activas = []
 _lock_notificaciones = threading.Lock()
 
 def _mostrar_notificacion_jugador(un_juego, nombre, accion):
-    """Muestra un cartel temporal cuando un jugador se une o desconecta de la sala."""
+    """Muestra un cartel temporal cuando un jugador se une o desconecta de la sala.
+    Los carteles se apilan verticalmente y se centran como grupo en la pantalla."""
     import threading
     try:
-        from recursos_graficos.elementos_de_interfaz_de_usuario import CartelAlerta
+        from recursos_graficos.elementos_de_interfaz_de_usuario import CartelNotificacion
         from recursos_graficos import constantes as _const
 
         nombre_mostrar = nombre if nombre else "Jugador"
@@ -505,20 +507,20 @@ def _mostrar_notificacion_jugador(un_juego, nombre, accion):
         else:
             mensaje = f"{nombre_mostrar} se desconectó"
 
-        # Determinar en qué superficie mostrar el cartel
-        # Prioridad: mesa de juego activa > sala de espera
         pantalla = un_juego.pantalla
         ancho_cartel = 600
         alto_cartel = 110
         margen = 10
-        x = (_const.ANCHO_VENTANA - ancho_cartel) // 2
-        y_base = int(_const.ALTO_VENTANA * 0.08)
-        
+        ancho_pantalla = pantalla.get_width()
+        alto_pantalla = pantalla.get_height()
+        x = (ancho_pantalla - ancho_cartel) // 2
+        y_base = int(alto_pantalla * 0.08)
+
         with _lock_notificaciones:
             slot = len(_notificaciones_activas)
             y = y_base + slot * (alto_cartel + margen)
 
-        cartel = CartelAlerta(
+        cartel = CartelNotificacion(
             pantalla=pantalla,
             mensaje=mensaje,
             x=x,
@@ -528,6 +530,17 @@ def _mostrar_notificacion_jugador(un_juego, nombre, accion):
             mostrar_boton_cerrar=False,
             duracion_ms=5000
         )
+
+        # Posicionar manualmente SIN usar mostrar(), ya que mostrar() llama a
+        # centrar_en_pantalla() y sobreescribiría x,y centrando el cartel
+        # en el medio de la pantalla (causando que todos se superpongan).
+        cartel.x = x
+        cartel.y = y
+        cartel.rect.topleft = (x, y)
+        cartel.boton_cerrar_rect.topleft = (x + ancho_cartel - 30, y + 10)
+        cartel.visible = True
+        if cartel.duracion_ms is not None:
+            cartel.tiempo_mostrado = pygame.time.get_ticks()
 
         # Añadir el cartel al menú activo para que se dibuje
         menu_activo = None
@@ -540,8 +553,12 @@ def _mostrar_notificacion_jugador(un_juego, nombre, accion):
         if menu_activo is not None:
             if not hasattr(menu_activo, 'overlays'):
                 menu_activo.overlays = []
+
+            with _lock_notificaciones:
+                _notificaciones_activas.append(cartel)
+
             menu_activo.overlays.append(cartel)
-            cartel.mostrar()
+
             # Ocultar y limpiar automáticamente tras la duración
             def _quitar():
                 try:
@@ -551,8 +568,12 @@ def _mostrar_notificacion_jugador(un_juego, nombre, accion):
                     with _lock_notificaciones:
                         if cartel in _notificaciones_activas:
                             _notificaciones_activas.remove(cartel)
+                        # Reposicionar los carteles restantes para llenar el hueco
                         for i, c in enumerate(_notificaciones_activas):
-                            c.rect.y = y_base + i * (alto_cartel + margen)
+                            nuevo_y = y_base + i * (alto_cartel + margen)
+                            c.y = nuevo_y
+                            c.rect.topleft = (c.x, nuevo_y)
+                            c.boton_cerrar_rect.topleft = (c.x + c.ancho - 30, nuevo_y + 10)
                 except Exception:
                     pass
             threading.Timer(5.2, _quitar).start()
