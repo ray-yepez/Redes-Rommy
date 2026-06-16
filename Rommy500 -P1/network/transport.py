@@ -10,7 +10,7 @@ from .exceptions import TimeoutException, ConnectionResetException
 from .protocol import pack_message, unpack_message
 logger = logging.getLogger(__name__)
 
-def _recv_exact(self, sock: socket.socket, n: int) -> Optional[bytes]:
+def recv_exact(self, sock: socket.socket, n: int) -> Optional[bytes]:
     """Recibe exactamente n bytes garantizando que no se queden fragmentos en el camino."""
     data = b''
     retries = 0
@@ -65,7 +65,8 @@ class Transport:
 
         el nuevo header de 10 bytes y el antiguo de 4 bytes sin corromper el stream.
         """
-        
+        from .constants import PROTOCOL_VERSION
+
         original_timeout = sock.gettimeout()
         
         try:
@@ -110,12 +111,12 @@ class Transport:
     def _recv_legacy(self, sock):
         """Recibe mensaje con formato antiguo (4 bytes de header original)."""
         # CORRECCIÓN: Leer exactamente 4 bytes que corresponden al tamaño en formato antiguo
-        header = self._recv_exact(sock, 4)
+        header = recv_exact(sock, 4)
         if header is None:
             return None
         
         length = struct.unpack('>I', header)[0]
-        data = self._recv_exact(sock, length)
+        data = recv_exact(sock, length)
         if data is None:
             return None
         

@@ -4,7 +4,6 @@ import pickle
 from typing import Optional, Any
 
 from .constants import HEADER_SIZE, PROTOCOL_VERSION, MESSAGE_SCHEMA
-from .transport import _recv_exact
 
 
 
@@ -64,7 +63,7 @@ def pack_message(data: dict) -> bytes:
 
 
 def unpack_message(sock, timeout=None):
-   
+    from .transport import recv_exact
     
     original_timeout = sock.gettimeout()
     
@@ -73,7 +72,7 @@ def unpack_message(sock, timeout=None):
             sock.settimeout(timeout)
         
         # Leer header de 10 bytes
-        header = _recv_exact(sock, HEADER_SIZE)
+        header = recv_exact(sock, HEADER_SIZE)
         if header is None:
             return None, "Header incompleto"
         
@@ -89,7 +88,7 @@ def unpack_message(sock, timeout=None):
             return None, f"Mensaje demasiado grande: {length} bytes"
         
        
-        payload = _recv_exact(sock, length)
+        payload = recv_exact(sock, length)
         if payload is None:
             return None, "Payload incompleto"
         
