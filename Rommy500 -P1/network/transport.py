@@ -7,9 +7,31 @@ from typing import Optional, Any
 from .config import DEFAULT_CONFIG
 # pyrefly: ignore [missing-import]
 from .exceptions import TimeoutException, ConnectionResetException
-from .constants import pack_message, unpack_message, HEADER_SIZE
-
+from .protocol import pack_message, unpack_message
 logger = logging.getLogger(__name__)
+
+def recv_exact( sock: socket.socket, n: int) -> Optional[bytes]:
+    """Recibe exactamente n bytes garantizando que no se queden fragmentos en el camino."""
+    data = b''
+    retries = 0
+    while len(data) < n:
+        try:
+            chunk = sock.recv(n - len(data))
+            if not chunk:
+                return None
+            data += chunk
+            retries = 0
+        except socket.timeout:
+            if len(data) == 0:
+                raise
+            retries += 1
+            if retries >= self.config.MAX_RECV_RETRIES:
+                raise TimeoutException("Max retries alcanzado leyendo datos parciales")
+            continue
+        except Exception:
+            return None
+    return data
+
 
 class Transport:
     """Capa de transporte: envío/recepción confiable con pickle."""
@@ -31,6 +53,8 @@ class Transport:
                 pickled = pickle.dumps(data)
                 header = struct.pack('>I', len(pickled))
                 packet = header + pickled
+                print(header)
+                print(pickled[:50])
             
             sock.sendall(packet)
             return True
@@ -43,9 +67,7 @@ class Transport:
 
         el nuevo header de 10 bytes y el antiguo de 4 bytes sin corromper el stream.
         """
-        import socket
-        import struct
-        from .constants import PROTOCOL_VERSION, unpack_message
+        from .constants import PROTOCOL_VERSION
 
         original_timeout = sock.gettimeout()
         
@@ -87,40 +109,16 @@ class Transport:
             if timeout is not None:
                 sock.settimeout(original_timeout)
 
-    def _recv_exact(self, sock: socket.socket, n: int) -> Optional[bytes]:
-        """Recibe exactamente n bytes garantizando que no se queden fragmentos en el camino."""
-        data = b''
-        retries = 0
-        while len(data) < n:
-            try:
-                chunk = sock.recv(n - len(data))
-                if not chunk:
-                    return None
-                data += chunk
-                retries = 0
-            except socket.timeout:
-                if len(data) == 0:
-                    raise
-                retries += 1
-                if retries >= self.config.MAX_RECV_RETRIES:
-                    raise TimeoutException("Max retries alcanzado leyendo datos parciales")
-                continue
-            except Exception:
-                return None
-        return data
 
     def _recv_legacy(self, sock):
         """Recibe mensaje con formato antiguo (4 bytes de header original)."""
-        import pickle
-        import struct
-        
         # CORRECCIÓN: Leer exactamente 4 bytes que corresponden al tamaño en formato antiguo
-        header = self._recv_exact(sock, 4)
+        header = recv_exact(sock, 4)
         if header is None:
             return None
         
         length = struct.unpack('>I', header)[0]
-        data = self._recv_exact(sock, length)
+        data = recv_exact(sock, length)
         if data is None:
             return None
         
