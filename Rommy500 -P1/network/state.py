@@ -50,9 +50,15 @@ class NetworkState:
         self.server_info_to_reconnect = None
         self.receivedData = None
         
+        # Mensajes temporales para la UI (avisos de conexión/desconexión)
+        self.mensaje = "" #LOS ATRIBUTOS DEL MENSAJE SE INICIALIZAN AQUÍ PARA QUE LUEGO EL MÁNAGER LOS HEREDE
+        self.tiempoDelMensaje = 0
+        
         # Estado de jugadores en partida
         self.connected_players: List[ConnectedPlayer] = []
         self.last_activity = {}  # {player_id: timestamp_float}
+        
+        self.current_player_count = None
         
         logger.info("NetworkState inicializado de forma segura.")
     

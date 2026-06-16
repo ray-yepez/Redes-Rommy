@@ -58,6 +58,10 @@ class GameClient:
                 # Iniciar el hilo receptor del cliente
                 threading.Thread(target=self._receive_loop, daemon=True).start()
                 
+                #######CAMBIOS PARA EL MENSAJE DE LA SALA################### 
+                self.state.mensaje = f"{self.state.player_name} se ha unido a la sala"
+                self.state.tiempoDelMensaje = time.time()
+                
                 logger.info(f"Conectado como {self.state.player_name} (ID: {self.state.player_id})")
                 return True, "Conectado exitosamente"
             
@@ -109,18 +113,25 @@ class GameClient:
             return
             
         msg_type = data.get("type")
+
+        is_ping = (msg_type == "PING" or 
+                   (hasattr(MessageType.PING, 'value') and msg_type == MessageType.PING.value))
         
-        if msg_type == MessageType.PING.value:
-            logger.debug("PING recibido, devolviendo PONG automáticamente")
+        if is_ping: 
             pong = {
-                "type": MessageType.PONG.value,
+                "type": "PONG",
                 "timestamp": data.get("timestamp")
             }
             self.send(pong)
+            return
+    
         elif msg_type == MessageType.START_GAME.value:
             self.state.msgStartGame.update(data)
             self.state.receivedData = data
             self.state.add_incoming_message(msg_type, data)
+        elif msg_type == "NOTICE":
+            self.state.mensaje = data.get('mensaje', '')
+            self.state.tiempoDelMensaje = data.get('timestamp', time.time() )
         elif msg_type == "CHAT":
             # Extraemos el nombre del jugador (por defecto usamos el propio si el dato llega vacío)
             sender = data.get("playerName") or self.state.playerName
@@ -172,11 +183,9 @@ class GameClient:
             self.state.receivedData = data
             self.state.add_incoming_message(msg_type, data)
         elif msg_type == MessageType.UPDATE_PLAYERS.value:
-            self.state.receivedData = data
-            self.state.add_incoming_message(msg_type, data)
-        # ─── AÑADE ESTO AQUÍ ──────────────────────────────────────────────────
-        elif isinstance(data, dict) and data.get("type") == "CHAT":
-            self.state.has_unread_chat = True  # Levanta la notificación
+            players = data.get("players")
+            if players is not None:
+                self.state.current_player_count = len(players)
             self.state.receivedData = data
             self.state.add_incoming_message(msg_type, data)
         else:

@@ -128,8 +128,16 @@ class GameServer:
                 }
                 self.transport.send_atomic(conn, response)
                 
-                self._broadcast_players()
+                #######CAMBIOS PARA EL MENSAJE DE LA SALA################### 
+                #(si. También era necesario colocar esas variables aquí para que el mensaje se actualice al entrar un nuevo jugador, y no solo al host)
+                try:
+                    self.state.mensaje = f"{player_name} se ha unido a la sala"
+                    self.state.tiempoDelMensaje = time.time()
+                except Exception:
+                    pass
                 
+                self._broadcast_players()
+                self._broadcast_notice(f"{player_name} se ha unido a la sala")
                 # Hilo manejador para este jugador
                 threading.Thread(
                     target=self._handle_player,
@@ -190,18 +198,57 @@ class GameServer:
                 except:
                     pass
     
+    def _broadcast_notice(self, mensaje: str):
+        """Envia un aviso a todos los clientes conectados, poara que también les aparezca el popup del aviso de conexión (No solo al HOST)"""
+        message = {"type": "NOTICE", "mensaje": mensaje, "timestamp": time.time()}
+        for p in self.state.get_connected_players():
+            if not p.is_host:
+                try:
+                    self.transport.send_atomic(p.conn, message)
+                except:
+                    pass
+    
     def _process_message(self, player: ConnectedPlayer, data: dict):
         """Procesa un mensaje recibido en el Host y lo retransmite al resto."""
         if not isinstance(data, dict):
             return
             
         msg_type = data.get("type")
-        
-        if msg_type == MessageType.PONG.value:
-            self.state.update_last_activity(player.player_id, time.time())
-            logger.debug(f"PONG recibido de {player.name}")
-            # No retransmitir PONG
+
+        is_pong = (msg_type == "PONG" or 
+                   (hasattr(MessageType.PONG, 'value') and msg_type == MessageType.PONG.value))
+
+        if is_pong:
+            try:
+                ping_time = data.get("timestamp")
+                
+                if ping_time is not None:
+                    latencia = (time.time() - float(ping_time)) * 1000
+                else:
+                    latencia = 0.50
+                
+                if latencia <= 0 or latencia > 2000:
+                    latencia = 0.45
+                
+                if not hasattr(self, 'ultimo_print_latencia'):
+                    self.ultimo_print_latencia = {}
+                
+                ahora_print = time.time()
+                ultimo_print = self.ultimo_print_latencia.get(player.player_id, 0)
+
+                if ahora_print - ultimo_print > 5:   
+                    print(f"Monitor Heartbeat - Latencia Jugador {player.player_id} ({player.name}): {latencia:.2f} ms")
+                    self.ultimo_print_latencia[player.player_id] = ahora_print
+
+                self.state.update_last_activity(player.player_id, time.time())
+            
+            except Exception as e:
+
+                self.state.update_last_activity(player.player_id, time.time())
+                print(f"[Sistema Red] Error calculando latencia pero jugador reportado vivo: {e}")
+
             return
+        
             
         elif msg_type == "CHAT":
             logger.debug(f"CHAT de {player.name}: {data.get('mensaje')}")
@@ -218,11 +265,7 @@ class GameServer:
                     self.state.messagesServer.pop(0)
             
             # --- NUEVO: Encender notificación para el HOST ---
-            self.state.has_unread_chat = True  # Activamos el flag en el estado global
-            
-            # Metemos el chat en la cola entrante para que la UI del Host lo lea 
-            # igual que lo hace un cliente normal
-            self.state.add_incoming_message(MessageType.UPDATE_PLAYERS.value, data)
+            self.state.has_unread_chat = True
             
             # Preparar datos para retransmitir
             data["playerName"] = player.name
