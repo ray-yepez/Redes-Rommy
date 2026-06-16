@@ -42,7 +42,6 @@ class ErrorCode(Enum):
     NETWORK_UNREACHABLE = "NETWORK_UNREACHABLE"
 
 
-#Aquí empieza la modificación
 pass
 
 MESSAGE_SCHEMA = {

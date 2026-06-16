@@ -10,7 +10,7 @@ from .exceptions import TimeoutException, ConnectionResetException
 from .protocol import pack_message, unpack_message
 logger = logging.getLogger(__name__)
 
-def recv_exact(self, sock: socket.socket, n: int) -> Optional[bytes]:
+def recv_exact( sock: socket.socket, n: int) -> Optional[bytes]:
     """Recibe exactamente n bytes garantizando que no se queden fragmentos en el camino."""
     data = b''
     retries = 0
@@ -53,6 +53,8 @@ class Transport:
                 pickled = pickle.dumps(data)
                 header = struct.pack('>I', len(pickled))
                 packet = header + pickled
+                print(header)
+                print(pickled[:50])
             
             sock.sendall(packet)
             return True
