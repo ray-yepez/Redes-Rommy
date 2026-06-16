@@ -53,8 +53,7 @@ class Transport:
                 pickled = pickle.dumps(data)
                 header = struct.pack('>I', len(pickled))
                 packet = header + pickled
-                print(header)
-                print(pickled[:50])
+
             
             sock.sendall(packet)
             return True
