@@ -36,6 +36,8 @@ MANIFEST
 *.sql
 *.sqlite
 *.db
+id_jugador.txt
+.py.bak
 
 # Entornos virtuales
 venv/
