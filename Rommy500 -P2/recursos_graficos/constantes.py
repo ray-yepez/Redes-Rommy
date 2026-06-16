@@ -168,4 +168,5 @@ REDIBUJAR_CARTAS = pygame.USEREVENT + 4
 # los clientes con las nuevas cartas del Host ya bajadas a la mesa.
 EVENTO_CONCLUIR_RONDA = pygame.USEREVENT + 5
 # ─────────────────────────────────────────────────────────────────────────────
-EVENTO_NOTIFICACION_JUGADOR = pygame.USEREVENT + 5
+# Notificación visual cuando un jugador entra o sale de la sala
+EVENTO_NOTIFICACION_JUGADOR = pygame.USEREVENT + 6

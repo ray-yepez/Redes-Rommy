@@ -170,6 +170,14 @@ class ClienteMixin:
                 if mensaje.get('lista_jugadores') != nueva_lista:
                     evento_py = pygame.event.Event(constantes.EVENTO_NUEVO_JUGADOR,nueva_lista =mensaje.get('lista_jugadores'))
                     pygame.event.post(evento_py)
+                # Notificación visual (solo si no es el propio jugador)
+                if mensaje['id_jugador'] != self.id_jugador:
+                    evento_notif = pygame.event.Event(
+                        constantes.EVENTO_NOTIFICACION_JUGADOR,
+                        nombre=nombre,
+                        accion="unio"
+                    )
+                    pygame.event.post(evento_notif)
         elif mensaje['type'] == 'JugadorDesconectado':
             print(f"Jugador desconectado: ID {mensaje['id_jugador']}, Total jugadores: {mensaje['TotalJugadores']}")
             print(mensaje.get('lista_jugadores'))
