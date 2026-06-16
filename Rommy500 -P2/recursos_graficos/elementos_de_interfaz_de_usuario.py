@@ -663,6 +663,7 @@ class EntradaTexto(BotonRadio):
             pygame.draw.line(self.pantalla, self.color_texto, (x_cursor, y_inicio), (x_cursor, y_fin), 1)
     def verificar_hover(self, posicion_raton):
         return super().verificar_hover(posicion_raton)
+
 class CartelAlerta:
     def __init__(self, pantalla, mensaje, x, y, ancho=500, alto=300, mostrar_boton_cerrar=True, duracion_ms=None): #====Jesua: añadido mostrar_boton_cerrar para la alerta de ronda finalizada, duracion_ms para temporizacion
             self.pantalla = pantalla
@@ -863,7 +864,6 @@ class CartelAlerta:
         self.esta_hover = self.boton_cerrar_rect.collidepoint(posicion_raton)
         
         return self.esta_hover != estaba_hover
-
 
 class CartelNotificacion(CartelAlerta):
     """Variante de CartelAlerta para avisos tipo 'toast' (ej. jugador se unió/desconectó).
