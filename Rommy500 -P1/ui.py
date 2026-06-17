@@ -898,29 +898,21 @@ class   UIManager:
         self.SCREEN.blit(sala_surf, (box_x + 60, y_textos))
         self.SCREEN.blit(jugadores_surf, (box_x + box_width - jugadores_surf.get_width() - 60, y_textos))
 
-        # ─── 3. SISTEMA DE NOTIFICACIÓN (RE-BLINDADO POST-CAMBIOS) ───
-        # Conseguimos de forma segura la cantidad actual de mensajes en el servidor
-        cantidad_actual = 0
+        # ─── 3. SISTEMA DE NOTIFICACIÓN (CONECTADO A LA RED 2.0.0) ───
         if hasattr(self, "network_manager"):
-            # Intentamos leer messagesServer; si no existe por los cambios, usamos una lista vacía
-            msg_server = getattr(self.network_manager, "messagesServer", [])
-            if msg_server is not None:
-                cantidad_actual = len(msg_server)
-
-        # Inicialización de las variables de control de la UI (la primera vez)
-        if not hasattr(self, "mensajes_guardados"):
-            self.mensajes_guardados = cantidad_actual
+            # 1. SI EL CHAT ESTÁ CERRADO: Consultamos directamente la propiedad del manager
+            if not getattr(self, "show_chat", False):
+                # Si el network_manager reporta un chat no leído, encendemos la alerta de la UI
+                if getattr(self.network_manager, "needs_chat_notification", False):
+                    self.tiene_notificacion = True
+            
+            # 2. SI EL CHAT ESTÁ ABIERTO: Reseteamos la alerta en la UI y vaciamos el flag en la red
+            else:
+                self.tiene_notificacion = False
+                if hasattr(self.network_manager, "clear_chat_notification"):
+                    self.network_manager.clear_chat_notification()
+        else:
             self.tiene_notificacion = False
-
-        # SI EL CHAT ESTÁ CERRADO: Si la cantidad actual creció, se activa la alerta
-        if not getattr(self, "show_chat", False) and cantidad_actual > self.mensajes_guardados:
-            self.tiene_notificacion = True
-
-        # SI EL CHAT ESTÁ ABIERTO: Reseteamos la alerta e igualamos el contador al día
-        if getattr(self, "show_chat", False):
-            self.tiene_notificacion = False
-            self.mensajes_guardados = cantidad_actual
-
 
         # ─── INTERCAMBIO SEGURO DE LA IMAGEN EN EL BOTÓN DEL CHAT ────────────
         if hasattr(self, "TOGGLE_CHAT_BUTTON"):
@@ -936,7 +928,6 @@ class   UIManager:
             # Procesamos el hover y dibujamos para que asimile la original_image correcta
             self.TOGGLE_CHAT_BUTTON.check_hover(MENU_MOUSE_POS)
             self.TOGGLE_CHAT_BUTTON.update(self.SCREEN)
-        # ─────────────────────────────────────────────────────────────────────
 
         # Posicionamos el botón
         chat_x = self.SCREEN_WIDTH // 2

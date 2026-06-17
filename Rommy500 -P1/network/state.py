@@ -32,7 +32,7 @@ class NetworkState:
         self.is_host = False
         self.game_started = False
         self.host_disconnected = False
-        # --- NUEVO: Estado de notificaciones de chat ---
+        # --- NUEVO: Estado de notificaciones de chat ---  x
         self.has_unread_chat = False
         
         # Datos del cliente / servidor local
