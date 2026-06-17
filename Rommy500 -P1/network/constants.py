@@ -312,3 +312,13 @@ def _recv_exact(sock, n: int) -> bytes:
             return None
         data += chunk
     return data
+
+MESSAGE_SCHEMA["CHAT"] = {
+    "required": ["type", "playerName", "mensaje"],
+    "fields": {
+        "type": str,
+        "playerName": str, 
+        "mensaje": str,
+        "notificar": bool
+    }
+}

@@ -90,23 +90,23 @@ class GameServer:
                     conn.close()
                     continue
                 
-                # Validar espacio
-                if len(self.state.get_connected_players()) >= self.state.max_players:
-                    logger.warning(f"Servidor lleno, rechazando {addr}")
-                    self.transport.send_atomic(conn, ConnectionStatus.FULL.value)
-                    conn.close()
-                    continue
-                
                 # Verificar reconexión
                 existing_player = self._find_player_by_name(player_name)
                 if existing_player:
                     logger.info(f"Reconexión: {player_name} (ID: {existing_player.player_id})")
                     player_id = existing_player.player_id
                     self.state.remove_connected_player(player_id)
+                
                 else:
                     player_id = self.next_player_id
                     self.next_player_id += 1
                 
+                #verificar espacio 
+                if len(self.state.get_connected_players()) >= self.state.max_players:
+                    logger.warning(f"Servidor lleno, rechazando {addr}")
+                    self.transport.send_atomic(conn, ConnectionStatus.FULL.value)
+                    conn.close()
+                    continue
                 # Crear objeto jugador
                 player = ConnectedPlayer(
                     conn=conn,
@@ -280,22 +280,22 @@ class GameServer:
             return
 
         else:
-            # ── Todas las jugadas del juego ──────────────────────────────────
-            # 1. Anotar el sender para que el Host sepa de quién viene
-            data["sender_id"] = player.player_id
-            
-            # 2. Guardar en la cola del Host (get_moves_gameServer)
-            self.state.add_move(data, server=True)
-            
-            # 3. RETRANSMITIR a todos los demás clientes (excepto al que envió)
-            #    Así el otro jugador recibe la jugada en su get_moves_game()
-            for p in self.state.get_connected_players():
-                if not p.is_host and p.player_id != player.player_id:
-                    try:
-                        self.transport.send_atomic(p.conn, data)
-                        logger.debug(f"Retransmitiendo {msg_type} de {player.name} a {p.name}")
-                    except Exception as e:
-                        logger.warning(f"Error retransmitiendo a {p.name}: {e}")
+         # ── Todas las jugadas del juego ──────────────────────────────────
+          # 1. Anotar el sender para que el Host sepa de quién viene
+         data["sender_id"] = player.player_id
+    
+         # 2. Guardar en la cola del Host (get_moves_gameServer)
+         self.state.add_move(data, server=True)
+    
+         # 3. RETRANSMITIR a TODOS los clientes (incluyendo al que envió)
+         #    Así el jugador que hizo la jugada también actualiza su UI
+         for p in self.state.get_connected_players():
+           if not p.is_host:  # Retransmitir a todos los clientes
+             try:
+                self.transport.send_atomic(p.conn, data)
+                logger.debug(f"Retransmitiendo {msg_type} de {player.name} a {p.name}")
+             except Exception as e:
+                logger.warning(f"Error retransmitiendo a {p.name}: {e}")
     
     def _find_player_by_name(self, name: str):
         """Busca jugador por nombre (usado para reconexiones)."""

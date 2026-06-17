@@ -132,31 +132,25 @@ class GameClient:
         elif msg_type == "NOTICE":
             self.state.mensaje = data.get('mensaje', '')
             self.state.tiempoDelMensaje = data.get('timestamp', time.time() )
+        
         elif msg_type == "CHAT":
-            # Extraemos el nombre del jugador (por defecto usamos el propio si el dato llega vacío)
             sender = data.get("playerName") or self.state.playerName
             msgFormat = f"{sender}: {data.get('mensaje', '')}"
-            
-            # CORRECCIÓN 2: Imprimir en la terminal del Cliente cuando llega un mensaje de otro jugador o del Host
+    
             print(f"\n[CHAT - RECIBIDO EN CLIENTE] {msgFormat}")
-            
+    
             with self.state._lock_messages:
-                self.state.messagesServer.append(msgFormat)
-                if len(self.state.messagesServer) > 20:
-                    self.state.messagesServer.pop(0)
-            
-            # --- NUEVO: Activar la flag de notificación en memoria ---
-            self.state.has_unread_chat = True
-            
-            # Programar la flag en el diccionario JSON por si tu UI (Pygame) lo lee desde la cola
+             self.state.messagesServer.append(msgFormat)
+             if len(self.state.messagesServer) > 20:
+              self.state.messagesServer.pop(0)
+     
+             # Asegurar que el flag notificar esté presente
             data["notificar"] = True
+    
+            self.state.has_unread_chat = True
             self.state.receivedData = data
             self.state.add_incoming_message(msg_type, data)
-        elif msg_type in [
-            MessageType.ELECTION_CARDS.value,
-            MessageType.SELECTION_UPDATE.value,
-        ]:
-            self.state.update_game_state(data)
+            
         elif msg_type == MessageType.DESCONEXION.value:
             # Mensaje de control cuando el Host se desconecta o notifica una desconexión masiva.
             self.state.add_incoming_message(msg_type, data)
