@@ -15,29 +15,6 @@ class Mesa:
         pass
 
     @classmethod
-    def gestionar_desconexion_jugador(cls, id_jugador, manos_dict, mazo):
-        """
-        Limpia las entidades y devuelve las cartas a la baraja cuando ocurre un Drop.
-        """
-        print(f"\n[Mesa] AISLAMIENTO: Procesando desconexión del jugador ID {id_jugador}...")
-
-        # 1. Actualizar estatus para saltar turno automáticamente
-        cls.estado_jugadores[id_jugador] = False
-
-        # 2. Devolver cartas al mazo cerrado y vaciar su mano virtual
-        if id_jugador in manos_dict:
-            cartas_huerfanas = manos_dict[id_jugador]
-            if cartas_huerfanas:
-                print(f"[Mesa] Reincorporando {len(cartas_huerfanas)} cartas al mazo general.")
-                mazo.cartas.extend(cartas_huerfanas)
-                manos_dict[id_jugador] = []
-
-                # Barajar el mazo para distribuir la aleatoriedad de las cartas reingresadas
-                mazo.revolver_mazo()
-
-        print(f"[Mesa] Limpieza del jugador {id_jugador} completada.")
-
-    @classmethod
     def normalizar(cls, texto):
         return texto.strip().lower().replace('á', 'a').replace('é', 'e').replace('í', 'i').replace('ó', 'o').replace('ú', 'u')
 

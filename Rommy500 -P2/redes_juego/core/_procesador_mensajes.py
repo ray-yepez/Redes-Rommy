@@ -36,17 +36,6 @@ class ProcesadorMensajesMixin:
             if id_jugador - 1 < len(self.clientes):
                 self.clientes[id_jugador-1]["status"] = "desconectado"
 
-            # =====================================================================
-            # INJECCIÓN DE LOGICA CORE: Limpieza de cartas y rebarajado automático
-            # =====================================================================
-            try:
-                if hasattr(self, 'mesa_juego') and self.mesa_juego:
-                    self.mesa_juego.gestionar_desconexion_jugador(id_jugador, self.manos, self.mazo)
-                    print(f"[Redes] Conexión core sincronizada: Cartas de ID {id_jugador} devueltas al mazo.")
-            except Exception as e:
-                print(f"[Redes] Advertencia al inyectar limpieza en Core: {e}")
-            # =====================================================================
-
             # Guardar datos del jugador desconectado en la persistencia del servidor para posible reconexión
             self.jugadores_desconectados[id_jugador] = {
                 'estado_juego': getattr(self, 'estado_juego', None),
