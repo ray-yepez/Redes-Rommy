@@ -489,6 +489,150 @@ class LogicaPartidaMixin:
         except Exception:
             return []
 
+    def _ejecutar_limpieza_jugador(self, id_jugador):
+        """Maneja el estado, la persistencia de red y la inyección en la lógica Core"""
+        with self.candado:
+            # Control de concurrencia: Evitar doble procesamiento si el flag ya fue activado
+            if id_jugador - 1 < len(self.clientes) and self.clientes[id_jugador-1].get("limpieza_realizada"):
+                return
+
+            if id_jugador - 1 < len(self.clientes):
+                self.clientes[id_jugador-1]["limpieza_realizada"] = True
+
+            nombre_jugador = self.clientes[id_jugador-1]['nombre'] if id_jugador-1 < len(self.clientes) else f"Jugador {id_jugador}"
+            print(f"[Redes] Ejecutando limpieza preventiva para {nombre_jugador} (ID: {id_jugador})")
+
+            # Forzar el cambio de estado de red a desconectado
+            if id_jugador - 1 < len(self.clientes):
+                self.clientes[id_jugador-1]["status"] = "desconectado"
+
+            # =====================================================================
+            # PROTOCOLO ACTUALIZADO: DEVOLUCIÓN DE ENTIDADES AL DESCARTE (CORREGIDO)
+            # =====================================================================
+            carta_sup_dict = None
+            try:
+                if hasattr(self, 'mesa_juego') and self.mesa_juego:
+                    # 1. Identificar el índice de la mano
+                    idx_mano = id_jugador - 1
+
+                    # 2. Transferencia directa de elementos a la lista global de descarte (self.descarte)
+                    if hasattr(self, 'manos') and idx_mano in self.manos:
+                        cartas_jugador = self.manos[idx_mano]
+                        if cartas_jugador:
+                            if not hasattr(self, 'descarte') or self.descarte is None:
+                                self.descarte = []
+
+                            # Se extienden las cartas directamente al descarte del Servidor
+                            self.descarte.extend(cartas_jugador)
+                            print(f"[Redes] {len(cartas_jugador)} cartas de {nombre_jugador} transferidas al descarte.")
+
+                        # 4. Seteo del tamaño de la mano del usuario desconectado a cero en self.manos
+                        self.manos[idx_mano] = []
+
+                    # 3. Conversión de la carta superior a diccionario único para actualizar "dato_carta_descarte"
+                    if hasattr(self, 'descarte') and self.descarte:
+                        carta_superior = self.descarte[-1]
+                        # CORRECCIÓN: Guardar como un diccionario plano (no dentro de una lista [])
+                        # para que sea 100% compatible con los lectores de descarte de Pygame mid-game
+                        carta_sup_dict = carta_superior.to_dict() if hasattr(carta_superior, 'to_dict') else carta_superior
+                        self.mesa_juego.elementos_mesa["dato_carta_descarte"] = carta_sup_dict
+
+                    # 4. Seteo del tamaño de la mano a cero en elementos_mesa
+                    if "cantidad_manos_jugadores" in self.mesa_juego.elementos_mesa:
+                        for jug_info in self.mesa_juego.elementos_mesa["cantidad_manos_jugadores"]:
+                            if jug_info.get("id") == id_jugador:
+                                jug_info["cantidad_mano"] = 0
+                                break
+
+                    print(f"[Redes] Sincronización de descarte y manos completada para la mesa.")
+            except Exception as e:
+                print(f"[Redes] Error crítico aplicando protocolo de descarte: {e}")
+            # =====================================================================
+
+            # Guardar datos del jugador para persistencia por reconexión
+            self.jugadores_desconectados[id_jugador] = {
+                'estado_juego': getattr(self, 'estado_juego', None),
+                'nombre': nombre_jugador
+            }
+
+            if id_jugador == 1:
+                print("[Redes] Host desconectado. Cerrando servidor de juego...")
+                try: self.desconectar_servidor()
+                except Exception as e: print(f"[Redes] Error en shutdown: {e}")
+                return
+
+            # Filtrar jugadores remanentes activos
+            jugadores_activos = [c['nombre'] for c in self.clientes if c.get('status') == 'activo']
+
+            # 5. Avance circular del turno (si correspondía)
+            turno_cambiado = False
+            if getattr(self, 'estado_partida', False) and hasattr(self, 'mesa_juego') and self.mesa_juego:
+                elementos = self.mesa_juego.elementos_mesa
+                jugador_mano_actual = elementos.get("jugador_mano")
+
+                if jugador_mano_actual and jugador_mano_actual[0] == id_jugador:
+                    print(f"[Redes] El jugador desconectado {id_jugador} tenía el turno activo. Buscando herencia...")
+                    jugadores = elementos.get("datos_lista_jugadores", [])
+                    idx_actual = next((i for i, j in enumerate(jugadores) if j[0] == id_jugador), None)
+
+                    if idx_actual is not None:
+                        id_siguiente = None
+                        nombre_siguiente = None
+
+                        # Algoritmo circular buscando estado "activo"
+                        for num in range(1, len(jugadores)):
+                            idx_siguiente = (idx_actual + num) % len(jugadores)
+                            cand_id = jugadores[idx_siguiente][0]
+                            cand_nombre = jugadores[idx_siguiente][1]
+
+                            if cand_id - 1 < len(self.clientes) and self.clientes[cand_id - 1].get("status") == "activo":
+                                id_siguiente = cand_id
+                                nombre_siguiente = cand_nombre
+                                break
+
+                        if id_siguiente is not None:
+                            elementos.update({"jugador_mano": (id_siguiente, nombre_siguiente)})
+                            print(f"[Redes] Turno transferido con éxito a: {nombre_siguiente} (ID: {id_siguiente})")
+                            turno_cambiado = True
+                            self.finalizar_turno(id_jugador, id_siguiente)
+                        else:
+                            print("[Redes] No quedan otros jugadores activos en la partida para heredar el turno.")
+
+            # CORRECCIÓN EMISIÓN REACTIVA: Forzar el redibujado del descarte usando el paquete nativo de Pygame
+            if carta_sup_dict and hasattr(self, 'mesa_juego') and self.mesa_juego:
+                self.difundir({
+                    "type": "Actualizacion_Decartar_Carta",
+                    "cantidad_manos_jugadores": self.mesa_juego.elementos_mesa.get("cantidad_manos_jugadores"),
+                    "dato_carta_descarte": carta_sup_dict,
+                })
+
+            # 6. Difusión broadcast a los clientes activos para refrescar el estado de desconexión
+            self.difundir({
+                'type': 'JugadorDesconectado',
+                'id_jugador': id_jugador,
+                'TotalJugadores': len(jugadores_activos),
+                "nombre": nombre_jugador,
+                "lista_jugadores": jugadores_activos,
+                "cantidad_manos_jugadores": self.mesa_juego.elementos_mesa.get("cantidad_manos_jugadores"),
+                "dato_carta_descarte": carta_sup_dict
+            })
+
+            # Si el turno NO cambió, forzamos una actualización visual reactiva intermedia
+            if not turno_cambiado and hasattr(self, 'mesa_juego') and self.mesa_juego:
+                self.difundir({
+                    "type": "Actualizar_Etiqueta_Turno",
+                    "jugador_mano": self.mesa_juego.elementos_mesa.get("jugador_mano"),
+                    "cantidad_manos_jugadores": self.mesa_juego.elementos_mesa.get("cantidad_manos_jugadores"),
+                    "turno_robar": False
+                })
+
+            # Manejo de sala vacía
+            if len(jugadores_activos) <= 1 and getattr(self, 'estado_partida', False):
+                print("[Redes] Sala vacía o insuficiente quórum. Cerrando servidor de forma segura...")
+                try: self.desconectar_servidor()
+                except Exception as e: print(f"[Redes] Error en shutdown automático: {e}")
+                return
+
     def finalizar_partida(self, id_ganador=None):
         """Acciones de limpieza al finalizar la partida.
 
