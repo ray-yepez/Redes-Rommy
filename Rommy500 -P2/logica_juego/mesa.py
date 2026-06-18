@@ -11,24 +11,8 @@ class Mesa:
     cartas_mesa = []
     jugadores_primera_jugada = []
 
-    # --- NUEVAS VARIABLES GLOBALES DE JUEGO (PERSISTENCIA Y RED) ---
-    puntos_acumulados = {}
-    estado_jugadores = {}
-
     def __init__(self):
         pass
-
-    @classmethod
-    def inicializar_estado_red(cls, lista_jugadores_objetos):
-        """
-        Inicializa los estados y puntuaciones previo al handshake del servidor.
-        Soluciona el AttributeError en mensajería.
-        """
-        cls.puntos_acumulados.clear()
-        cls.estado_jugadores.clear()
-        for j in lista_jugadores_objetos:
-            cls.puntos_acumulados[j.nro_jugador] = 0
-            cls.estado_jugadores[j.nro_jugador] = True  # True = Activo, False = Desconectado
 
     @classmethod
     def gestionar_desconexion_jugador(cls, id_jugador, manos_dict, mazo):
@@ -489,11 +473,6 @@ class Mesa:
 
         while not ronda_terminada:
             for i, jugador in enumerate(jugadores):
-                # ─── INYECTAR AQUÍ: VALIDACIÓN DE JUGADOR ACTIVO ──────────────────
-                if not cls.estado_jugadores.get(jugador.nro_jugador, True):
-                    print(f"\n[Turno Saltado] El jugador {jugador.nombre_jugador} está desconectado.")
-                    continue
-                 # ──────────────────────────────────────────────────────────────────
                 mano_actual = manos[i]
 
                 if jugador in cls.jugadores_primera_jugada:
