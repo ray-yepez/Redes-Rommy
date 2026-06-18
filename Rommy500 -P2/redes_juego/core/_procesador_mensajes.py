@@ -21,24 +21,33 @@ class ProcesadorMensajesMixin:
     def _ejecutar_limpieza_jugador(self, id_jugador):
         """Maneja el estado, la persistencia de red y la inyección en la lógica Core"""
         with self.candado:
-            if id_jugador - 1 < len(self.clientes) and self.clientes[id_jugador-1].get("status") == "desconectado":
+            # CORRECCIÓN 1: Evitar retornar temprano si el status es "desconectado".
+            # Usamos un flag interno para evitar que se ejecute la limpieza de cartas dos veces.
+            if id_jugador - 1 < len(self.clientes) and self.clientes[id_jugador-1].get("limpieza_realizada"):
                 return
+
+            if id_jugador - 1 < len(self.clientes):
+                self.clientes[id_jugador-1]["limpieza_realizada"] = True
 
             nombre_jugador = self.clientes[id_jugador-1]['nombre'] if id_jugador-1 < len(self.clientes) else f"Jugador {id_jugador}"
             print(f"[Redes] Ejecutando limpieza preventiva para {nombre_jugador} (ID: {id_jugador})")
+
+            # Asegurar que el estado quede como desconectado
+            if id_jugador - 1 < len(self.clientes):
+                self.clientes[id_jugador-1]["status"] = "desconectado"
 
             # =====================================================================
             # INJECCIÓN DE LOGICA CORE: Limpieza de cartas y rebarajado automático
             # =====================================================================
             try:
-                # Invocación directa a la lógica de negocio solicitada en el memorándum
-                self.mesa_juego.gestionar_desconexion_jugador(id_jugador, self.manos, self.mazo)
-                print(f"[Redes] Conexión core sincronizada: Cartas de ID {id_jugador} devueltas al mazo.")
+                if hasattr(self, 'mesa_juego') and self.mesa_juego:
+                    self.mesa_juego.gestionar_desconexion_jugador(id_jugador, self.manos, self.mazo)
+                    print(f"[Redes] Conexión core sincronizada: Cartas de ID {id_jugador} devueltas al mazo.")
             except Exception as e:
                 print(f"[Redes] Advertencia al inyectar limpieza en Core: {e}")
             # =====================================================================
 
-            # Guardar datos del jugador desconectado en la persistencia del servidor
+            # Guardar datos del jugador desconectado en la persistencia del servidor para posible reconexión
             self.jugadores_desconectados[id_jugador] = {
                 'estado_juego': getattr(self, 'estado_juego', None),
                 'nombre': nombre_jugador
@@ -50,10 +59,8 @@ class ProcesadorMensajesMixin:
                 except Exception as e: print(f"[Redes] Error en shutdown: {e}")
                 return
 
-            if id_jugador - 1 < len(self.clientes):
-                self.clientes[id_jugador-1]["status"] = "desconectado"
-
-            jugadores_activos = [c['nombre'] for c in self.clientes if c.get('status') != 'desconectado']
+            # Filtrar los jugadores que siguen realmente activos en la partida
+            jugadores_activos = [c['nombre'] for c in self.clientes if c.get('status') == 'activo']
 
             self.difundir({
                 'type': 'JugadorDesconectado',
@@ -63,8 +70,44 @@ class ProcesadorMensajesMixin:
                 "lista_jugadores": jugadores_activos
             })
 
-            if len(jugadores_activos) == 1 and getattr(self, 'estado_partida', False):
-                print("[Redes] Sala vacía detectada. Cerrando el servidor automáticamente...")
+            # =====================================================================
+            # CORRECCIÓN 2: AVANCE DE TURNO AUTOMÁTICO SI ERA EL JUGADOR ACTIVO
+            # =====================================================================
+            if getattr(self, 'estado_partida', False) and hasattr(self, 'mesa_juego') and self.mesa_juego:
+                elementos = self.mesa_juego.elementos_mesa
+                jugador_mano_actual = elementos.get("jugador_mano") # Tu estructura es un tuple: (id, nombre)
+
+                if jugador_mano_actual and jugador_mano_actual[0] == id_jugador:
+                    print(f"[Redes] El jugador desconectado {id_jugador} tenía el turno activo. Buscando siguiente jugador...")
+                    jugadores = elementos.get("datos_lista_jugadores", [])
+                    idx_actual = next((i for i, j in enumerate(jugadores) if j[0] == id_jugador), None)
+
+                    if idx_actual is not None:
+                        id_siguiente = None
+                        nombre_siguiente = None
+
+                        # Recorrer circularmente la mesa para hallar el próximo jugador con status 'activo'
+                        for num in range(1, len(jugadores)):
+                            idx_siguiente = (idx_actual + num) % len(jugadores)
+                            cand_id = jugadores[idx_siguiente][0]
+                            cand_nombre = jugadores[idx_siguiente][1]
+
+                            if cand_id - 1 < len(self.clientes) and self.clientes[cand_id - 1].get("status") == "activo":
+                                id_siguiente = cand_id
+                                nombre_siguiente = cand_nombre
+                                break
+
+                        if id_siguiente is not None:
+                            elementos.update({"jugador_mano": (id_siguiente, nombre_siguiente)})
+                            print(f"[Redes] Turno transferido con éxito a: {nombre_siguiente} (ID: {id_siguiente})")
+                            # Invoca tu método existente para notificar a los clientes el cambio de turno
+                            self.finalizar_turno(id_jugador, id_siguiente)
+                        else:
+                            print("[Redes] No quedan otros jugadores activos en la partida para heredar el turno.")
+
+            # Si se queda solo un jugador o la sala está vacía, cerramos de forma segura
+            if len(jugadores_activos) <= 1 and getattr(self, 'estado_partida', False):
+                print("[Redes] Sala vacía o con un solo jugador activo detectada. Cerrando el servidor automáticamente...")
                 try: self.desconectar_servidor()
                 except Exception as e: print(f"[Redes] Error al cerrar por sala vacía: {e}")
                 return
