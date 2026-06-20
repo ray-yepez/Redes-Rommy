@@ -62,6 +62,9 @@ class ClienteMixin:
         buffer = b""  # ✅ CAMBIO: usar bytes en lugar de string
         while self.conectado:
             try:
+               if self.socket_cliente is None:
+                    break
+               
                data = self.socket_cliente.recv(4096)
                if not data:
                   break
@@ -95,7 +98,11 @@ class ClienteMixin:
                     continue
                 
                   self._manejo_mensaje_red(mensaje)
-                        
+            except OSError as e:
+             print(f"[Redes] Socket cerrado o invalidado (Error de Windows controlado): {e}")
+             self.conectado = False
+             break  # Al hacer break, el hilo termina su ejecución limpiamente sin crashear
+           
             except Exception as e:
              print(f"Error al recibir mensaje del servidor: {e}")
              import traceback
@@ -181,7 +188,45 @@ class ClienteMixin:
         elif mensaje['type'] == 'JugadorDesconectado':
             print(f"Jugador desconectado: ID {mensaje['id_jugador']}, Total jugadores: {mensaje['TotalJugadores']}")
             print(mensaje.get('lista_jugadores'))
-            nombre = mensaje.get('nombre')
+
+            if self.mesa_juego:
+                datos_lista = mensaje.get("datos_lista_jugadores")
+                cantidad_manos = mensaje.get("cantidad_manos_jugadores")
+                jugador_mano = mensaje.get("jugador_mano")
+                total_jugadores = mensaje.get("TotalJugadores", 0)
+
+                print("=== RECONSTRUYENDO MESA ===")
+                print("datos_lista_jugadores:", datos_lista)
+                print("cantidad_manos_jugadores:", cantidad_manos)
+                print("jugador_mano:", mensaje.get("jugador_mano"))
+                print("TotalJugadores:", total_jugadores)
+
+                if not datos_lista:
+                    print("[Cliente] No se reconstruye mesa: datos_lista_jugadores vacío.")
+                    return
+
+                self.mesa_juego.elementos_mesa["datos_lista_jugadores"] = datos_lista
+
+                if cantidad_manos is not None:
+                    self.mesa_juego.elementos_mesa["cantidad_manos_jugadores"] = cantidad_manos
+
+                if jugador_mano is not None:
+                    self.mesa_juego.elementos_mesa["jugador_mano"] = jugador_mano
+
+                try:
+                    print("[Cliente] Reconstruyendo mesa por desconexión de jugador")
+                    print("ANTES DE REINICIAR:")
+                    print("datos_lista en elementos_mesa:", self.mesa_juego.elementos_mesa.get("datos_lista_jugadores"))
+                    print("cantidad_manos en elementos_mesa:", self.mesa_juego.elementos_mesa.get("cantidad_manos_jugadores"))
+                    print("jugador_mano en elementos_mesa:", self.mesa_juego.elementos_mesa.get("jugador_mano"))
+
+                    self.mesa_juego.reiniciar_visual_mesa(self.mesa_juego.mesa)
+                    self.mesa_juego.manejar_partida(self.mesa_juego.mesa)
+                    self.mesa_juego.determinar_turno()
+                    self.mesa_juego.actualizar_indicador_turno()
+                except Exception as e:
+                    print(f"[Cliente] Error reconstruyendo mesa tras desconexión: {e}")
+            
             if self.un_juego:
                 nueva_lista = self.un_juego.lista_elementos.get("lista_jugadores", [])
                 if mensaje.get('lista_jugadores') != nueva_lista:
@@ -283,10 +328,14 @@ class ClienteMixin:
             self.mesa_juego.procesar_tomar_mazo(self.mesa_juego.mesa,mensaje.get("carta_extra"))
             self.mesa_juego.elementos_mesa["cantidad_manos_jugadores"] = mensaje.get("cantidad_manos_jugadores")
             self.mesa_juego.actualizar_mazo(self.mesa_juego.mesa)
+            self.mesa_juego.actualizar_estado_mano(accion="activar_mano")
+            self.mesa_juego.actualizar_estado_mano(accion="activar_boton")
         elif mensaje["type"] == "Pasar_Turno":
             self.mesa_juego.elementos_mesa["jugador_mano"] = mensaje.get("jugador_mano")
             self.mesa_juego.elementos_mesa["cantidad_manos_jugadores"] = mensaje.get("cantidad_manos_jugadores")
             self.mesa_juego.elementos_mesa["turno_robar"] = mensaje.get("turno_robar")
+            self.mesa_juego.determinar_turno()
+            self.mesa_juego.actualizar_indicador_turno()
             self.mesa_juego.actualizar_manos_jugadores(self.mesa_juego.mesa)
             self.mesa_juego.limpiar_botones(self.mesa_juego.mesa)
             # Solo crear botones si el jugador NO descartó recientemente
@@ -296,6 +345,8 @@ class ClienteMixin:
         elif mensaje["type"] == "Tu_Turno":
             self.mesa_juego.elementos_mesa["jugador_mano"] = mensaje.get("jugador_mano")
             self.mesa_juego.elementos_mesa["cantidad_manos_jugadores"] = mensaje.get("cantidad_manos_jugadores")
+            self.mesa_juego.determinar_turno()
+            self.mesa_juego.actualizar_indicador_turno()
             self.mesa_juego.actualizar_manos_jugadores(self.mesa_juego.mesa)
             self.mesa_juego.limpiar_botones(self.mesa_juego.mesa)
             self.mesa_juego.crear_botones_inicio_turno(self.mesa_juego.mesa)
@@ -304,6 +355,7 @@ class ClienteMixin:
             self.mesa_juego.elementos_mesa["jugador_mano"] = mensaje.get("jugador_mano")
             self.mesa_juego.elementos_mesa["cantidad_manos_jugadores"] = mensaje.get("cantidad_manos_jugadores")
             self.mesa_juego.elementos_mesa["turno_robar"] = mensaje.get("turno_robar")
+            self.mesa_juego.determinar_turno()
             self.mesa_juego.actualizar_indicador_turno()
             self.mesa_juego.actualizar_elementos_jugadores()
             # Si no es el turno del jugador y no descartó recientemente, crear botones
@@ -842,6 +894,12 @@ class ClienteMixin:
                         'id_jugador': self.id_jugador,
                         'TotalJugadores': len(self.clientes) if hasattr(self, 'clientes') else 0
                     })
+                ##if hasattr(self, '_manejo_mensaje_red'):
+                    ##self._manejo_mensaje_red({
+                        ##'type': 'JugadorDesconectado',
+                        ##'id_jugador': self.id_jugador,
+                        ##'TotalJugadores': len(self.clientes) if hasattr(self, 'clientes') else 0
+                    ##})
         else:
             print("[Redes] Socket cliente no existe o ID de jugador no asignado")
 
@@ -868,4 +926,3 @@ class ClienteMixin:
         self.conectado = False
         self.desconectar_servidor()
         self.desconectar_cliente()
-

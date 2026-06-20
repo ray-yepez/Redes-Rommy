@@ -53,14 +53,51 @@ class ProcesadorMensajesMixin:
             if id_jugador - 1 < len(self.clientes):
                 self.clientes[id_jugador-1]["status"] = "desconectado"
 
-            jugadores_activos = [c['nombre'] for c in self.clientes if c.get('status') != 'desconectado']
+            jugadores_activos = [
+                c for c in self.clientes
+                if c.get("status") != "desconectado"
+            ]
+
+            lista_jugadores_activos = [
+                c["nombre"] for c in jugadores_activos
+            ]
+
+            if self.mesa_juego:
+                self.mesa_juego.elementos_mesa["datos_lista_jugadores"] = [
+                    (c["id"], c["nombre"]) for c in jugadores_activos
+                ]
+
+                self.mesa_juego.elementos_mesa["cantidad_manos_jugadores"] = [
+                    item for item in self.mesa_juego.elementos_mesa["cantidad_manos_jugadores"]
+                    if item["id"] != id_jugador
+                ]
+
+            ids_activos = [c["id"] for c in jugadores_activos]
+
+            jugador_mano_actual = self.mesa_juego.elementos_mesa.get("jugador_mano")
+
+            if jugador_mano_actual and jugador_mano_actual[0] not in ids_activos:
+                if ids_activos:
+                    siguiente = ids_activos[0]
+                    nombre_siguiente = next(c["nombre"] for c in jugadores_activos if c["id"] == siguiente)
+                    self.mesa_juego.elementos_mesa["jugador_mano"] = (siguiente, nombre_siguiente)
+
+            print("=== SERVIDOR DIFUNDIENDO DESCONEXIÓN ===")
+            print("id desconectado:", id_jugador)
+            print("jugadores_activos:", jugadores_activos)
+            print("datos_lista_jugadores:", self.mesa_juego.elementos_mesa.get("datos_lista_jugadores") if self.mesa_juego else None)
+            print("cantidad_manos_jugadores:", self.mesa_juego.elementos_mesa.get("cantidad_manos_jugadores") if self.mesa_juego else None)
+            print("jugador_mano:", self.mesa_juego.elementos_mesa.get("jugador_mano") if self.mesa_juego else None)
 
             self.difundir({
-                'type': 'JugadorDesconectado',
-                'id_jugador': id_jugador,
-                'TotalJugadores': len(jugadores_activos),
+                "type": "JugadorDesconectado",
+                "id_jugador": id_jugador,
+                "TotalJugadores": len(lista_jugadores_activos),
                 "nombre": nombre_jugador,
-                "lista_jugadores": jugadores_activos
+                "lista_jugadores": lista_jugadores_activos,
+                "datos_lista_jugadores": self.mesa_juego.elementos_mesa["datos_lista_jugadores"] if self.mesa_juego else [],
+                "cantidad_manos_jugadores": self.mesa_juego.elementos_mesa["cantidad_manos_jugadores"] if self.mesa_juego else [],
+                "jugador_mano": self.mesa_juego.elementos_mesa["jugador_mano"]
             })
 
             if len(jugadores_activos) == 1 and getattr(self, 'estado_partida', False):
@@ -79,7 +116,7 @@ class ProcesadorMensajesMixin:
                     if not data:
                         print(f"[Redes] Socket cerrado limpiamente por el cliente {id_jugador}.")
                         break
-                except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError) as e:
+                except (ConnectionResetError, ConnectionAbortedError, BrokenPipeError, OSError) as e:
                     print(f"[Redes] Ruptura de socket detectada en cliente {id_jugador}: {e}")
                     break
                 except socket.timeout:
@@ -261,6 +298,8 @@ class ProcesadorMensajesMixin:
                         # CLIENTE DESCONECTADO
                         elif mensaje.get('type') == 'ClienteDesconectado':
                             print(f"[ClienteDesconectado] Cliente {id_jugador} desconectado")
+                            id_jugador = mensaje.get("id_jugador", id_jugador)
+                            break
                             # Guardar datos del jugador desconectado
                             self.jugadores_desconectados[id_jugador] = {
                                 'estado_juego': self.estado_juego,
@@ -684,7 +723,13 @@ class ProcesadorMensajesMixin:
                                     "type": "Tomar_carta_mazo",
                                     "carta_extra": carta_extra.to_dict(),
                                     "jugador_mano": self.mesa_juego.elementos_mesa["jugador_mano"],
-                                    "cantidad_mano_jugadores": self.mesa_juego.elementos_mesa["cantidad_manos_jugadores"]
+                                    "cantidad_manos_jugadores": self.mesa_juego.elementos_mesa["cantidad_manos_jugadores"]
+                                })
+                                # ---> NUEVO: Avisar a los demás que el jugador robó
+                                self.difundir_excepcion(id_jugador, {
+                                    "type": "Actualizacion_Carta_Descarte",
+                                    "cantidad_manos_jugadores": self.mesa_juego.elementos_mesa["cantidad_manos_jugadores"],
+                                    "dato_carta_descarte": self.mesa_juego.elementos_mesa["dato_carta_descarte"],
                                 })
                         
                         # MONO QUEMADO
@@ -845,38 +890,485 @@ class ProcesadorMensajesMixin:
                         
                         # EXTENDER EN
                         elif mensaje["type"] == "extender_en":
-                            # Código existente para extender...
-                            pass
+                            print(mensaje)
+                            cartas_expandir = None
+                            if len(mensaje["cartas_expandir"]) == 1:
+                                cartas_expandir = mensaje["cartas_expandir"]
+                            else:
+                                cartas_expandir = False
+                            id_donde_bajarse = mensaje["id_jugador"]
+                            jugada = None
+                            print(self.jugadas_por_jugador)
+                            if self.ronda == 1:
+                                for x,y in self.jugadas_por_jugador.items():
+                                    if x == id_donde_bajarse:
+                                        if y:
+                                            jugada = y
+                                            jugada_trio = y[0]
+                                            jugada_seguidilla = y[-1]
+                                            break
+                                if jugada and cartas_expandir != False :
+                                    print(jugada)
+                                    validacion_ext_seguidilla = self.validar_extender_seguidilla(cartas_expandir[0],jugada_seguidilla[-1])
+                                    validacion_ext_trio = self.validar_extender_trio(cartas_expandir[0],jugada_trio[-1])
+                                    print(validacion_ext_seguidilla)
+                                    print(validacion_ext_trio)
+                                    if  validacion_ext_seguidilla != False and validacion_ext_trio != False:
+                                        print("Ahora se elige donde extender")
+                                        if validacion_ext_seguidilla == "ambos":
+                                            pos = "ambos"
+                                        else:
+                                            pos = validacion_ext_seguidilla
+                                        self.enviar_a_cliente(id_jugador,{
+                                            "type" : "elejir_donde_extender",
+                                            "posicion_seguidilla" : pos,
+                                            "trio_seguidilla" : True,
+                                            "seguidilla_seguidilla" : False,
+                                        })
+                                        self.informacion_extender = [mensaje["id_jugador"],cartas_expandir]
+                            
+                                    elif validacion_ext_seguidilla != False:
+                                        if validacion_ext_seguidilla == "inicio":
+                                            for carta in cartas_expandir:
+                                                for i, _carta in enumerate(self.manos[id_jugador-1]):
+                                                    _carta = _carta.to_dict()
+                                                    if carta["numero"] == _carta["numero"] and carta["figura"] == _carta["figura"]:
+                                                        self.manos[id_jugador-1].pop(i)
+                                                        self.modificar_cartas(id_jugador, -1)
+                                                        break
+                                            self.jugadas_por_jugador[id_donde_bajarse][-1][-1].insert(0, cartas_expandir[0])
+                                            print("Seguidilla extendida al inicio")
+                                            self.extender_confirmado(id_jugador,id_donde_bajarse)
+                                        elif validacion_ext_seguidilla == "final":
+                                            for carta in cartas_expandir:
+                                                for i, _carta in enumerate(self.manos[id_jugador-1]):
+                                                    _carta = _carta.to_dict()
+                                                    if carta["numero"] == _carta["numero"] and carta["figura"] == _carta["figura"]:
+                                                        self.manos[id_jugador-1].pop(i)
+                                                        self.modificar_cartas(id_jugador, -1)
+                                                        break
+                                            self.jugadas_por_jugador[id_donde_bajarse][-1][-1].extend(cartas_expandir)
+                                            print("Seguidilla extendida al final")
+                                            self.extender_confirmado(id_jugador,id_donde_bajarse)
+                                        elif validacion_ext_seguidilla == "ambos":
+                                            print("Se debe elegir donde extender la seguidilla")
+                                            self.enviar_a_cliente(id_jugador,{
+                                            "type" : "elejir_donde_extender",
+                                            "posicion_seguidilla" : "ambos",
+                                            "trio_seguidilla" : False,
+                                            "seguidilla_seguidilla" : False,
+                                            })
+                                            self.informacion_extender = [mensaje["id_jugador"],cartas_expandir]
+                                    elif validacion_ext_trio != False:
+                                        for carta in cartas_expandir:
+                                            for i, _carta in enumerate(self.manos[id_jugador-1]):
+                                                _carta = _carta.to_dict()
+                                                if carta["numero"] == _carta["numero"] and carta["figura"] == _carta["figura"]:
+                                                    self.manos[id_jugador-1].pop(i)
+                                                    self.modificar_cartas(id_jugador, -1)
+                                                    break
+                                        self.jugadas_por_jugador[id_donde_bajarse][0][-1].extend(cartas_expandir)
+                                        self.extender_confirmado(id_jugador,id_donde_bajarse)
+                                    print(self.jugadas_por_jugador)
+                            elif self.ronda == 2:
+                                print(self.jugadas_por_jugador)
+                                for x,y in self.jugadas_por_jugador.items():
+                                    if x == id_donde_bajarse:
+                                        if y:
+                                            jugada = y
+                                            jugada_seguidilla1 = y[0]
+                                            jugada_seguidilla2 = y[-1]
+                                            break
+                                if jugada and cartas_expandir != False :
+                                    print(jugada)
+                                    validacion_ext_seguidilla1 = self.validar_extender_seguidilla(cartas_expandir[0],jugada_seguidilla1[-1])
+                                    validacion_ext_seguidilla2 = self.validar_extender_seguidilla(cartas_expandir[0],jugada_seguidilla2[-1])
+                                    if validacion_ext_seguidilla2 != False and validacion_ext_seguidilla1 != False:
+                                        print("Ahora se elige en cual seguidilla extender")
+                                        if validacion_ext_seguidilla1 == "ambos":
+                                            pos = "ambos"
+                                        else:
+                                            pos = validacion_ext_seguidilla1
+                                        self.enviar_a_cliente(id_jugador,{
+                                            "type" : "elejir_donde_extender",
+                                            "posicion_seguidilla1" : pos,
+                                            "posicion_seguidilla2" : validacion_ext_seguidilla2,
+                                            "trio_seguidilla" : False,
+                                            "seguidilla_seguidilla" : True,
+                                            "ronda": self.ronda,
+                                        })
+                                        self.informacion_extender = [mensaje["id_jugador"],cartas_expandir]
+                                    elif validacion_ext_seguidilla1 != False:
+                                        if validacion_ext_seguidilla1 == "inicio":
+                                            for carta in cartas_expandir:
+                                                for i, _carta in enumerate(self.manos[id_jugador-1]):
+                                                    _carta = _carta.to_dict()
+                                                    if carta["numero"] == _carta["numero"] and carta["figura"] == _carta["figura"]:
+                                                        self.manos[id_jugador-1].pop(i)
+                                                        self.modificar_cartas(id_jugador, -1)
+                                                        break
+                                            self.jugadas_por_jugador[id_donde_bajarse][0][-1].insert(0, cartas_expandir[0])
+                                            print("Seguidilla extendida al inicio")
+                                            mano_nueva = self.convertir_mano_dic(id_jugador)
+                                            self.extender_confirmado(id_jugador,id_donde_bajarse)
+                                        elif validacion_ext_seguidilla1 == "final":
+                                            for carta in cartas_expandir:
+                                                for i, _carta in enumerate(self.manos[id_jugador-1]):
+                                                    _carta = _carta.to_dict()
+                                                    if carta["numero"] == _carta["numero"] and carta["figura"] == _carta["figura"]:
+                                                        self.manos[id_jugador-1].pop(i)
+                                                        self.modificar_cartas(id_jugador, -1)
+                                                        break
+                                            self.jugadas_por_jugador[id_donde_bajarse][0][-1].extend(cartas_expandir)
+                                            print("Seguidilla extendida al final")
+                                            self.extender_confirmado(id_jugador,id_donde_bajarse)
+                                        elif validacion_ext_seguidilla1 == "ambos":
+                                            print("Se debe elegir donde extender la seguidilla")
+                                            self.enviar_a_cliente(id_jugador,{
+                                            "type" : "elejir_donde_extender",
+                                            "posicion_seguidilla" : "seguidilla1",
+                                            "trio_seguidilla" : False,
+                                            "seguidilla_seguidilla" : False,
+                                            })
+                                            self.informacion_extender = [mensaje["id_jugador"],cartas_expandir]
+                                    elif validacion_ext_seguidilla2 != False:
+                                        if validacion_ext_seguidilla2 == "inicio":
+                                            for carta in cartas_expandir:
+                                                for i, _carta in enumerate(self.manos[id_jugador-1]):
+                                                    _carta = _carta.to_dict()
+                                                    if carta["numero"] == _carta["numero"] and carta["figura"] == _carta["figura"]:
+                                                        self.manos[id_jugador-1].pop(i)
+                                                        self.modificar_cartas(id_jugador, -1)
+                                                        break
+                                            self.jugadas_por_jugador[id_donde_bajarse][-1][-1].insert(0, cartas_expandir[0])
+                                            print("Seguidilla extendida al inicio")
+                                            mano_nueva = self.convertir_mano_dic(id_jugador)
+                                            self.extender_confirmado(id_jugador,id_donde_bajarse)
+                                        elif validacion_ext_seguidilla2 == "final":
+                                            for carta in cartas_expandir:
+                                                for i, _carta in enumerate(self.manos[id_jugador-1]):
+                                                    _carta = _carta.to_dict()
+                                                    if carta["numero"] == _carta["numero"] and carta["figura"] == _carta["figura"]:
+                                                        self.manos[id_jugador-1].pop(i)
+                                                        self.modificar_cartas(id_jugador, -1)
+                                                        break
+                                            self.jugadas_por_jugador[id_donde_bajarse][-1][-1].extend(cartas_expandir)
+                                            print("Seguidilla extendida al final")
+                                            self.extender_confirmado(id_jugador,id_donde_bajarse)
+                                        elif validacion_ext_seguidilla2 == "ambos":
+                                            print("Se debe elegir donde extender la seguidilla")
+                                            self.enviar_a_cliente(id_jugador,{
+                                            "type" : "elejir_donde_extender",
+                                            "posicion_seguidilla" : "seguidilla2",
+                                            "trio_seguidilla" : False,
+                                            "seguidilla_seguidilla" : False,
+                                            })
+                                            self.informacion_extender = [mensaje["id_jugador"],cartas_expandir]
+                            elif self.ronda == 3:
+                                print(self.jugadas_por_jugador)
+                                for x,y in self.jugadas_por_jugador.items():
+                                    if x == id_donde_bajarse:
+                                        if y:
+                                            jugada = y
+                                            jugada_trio1 = y[0]
+                                            jugada_trio2 = y[-1]
+                                            jugada_trio3 = y[-2]
+                                            break
+                                if jugada and cartas_expandir != False :
+                                    print(jugada)
+                                    validacion_ext_trio1 = self.validar_extender_trio(cartas_expandir[0],jugada_trio1[-1])
+                                    validacion_ext_trio2 = self.validar_extender_trio(cartas_expandir[0],jugada_trio2[-1])
+                                    validacion_ext_trio3 = self.validar_extender_trio(cartas_expandir[0],jugada_trio3[-1])
+                                    if validacion_ext_trio1 != False:
+                                        for carta in cartas_expandir:
+                                            for i, _carta in enumerate(self.manos[id_jugador-1]):
+                                                _carta = _carta.to_dict()
+                                                if carta["numero"] == _carta["numero"] and carta["figura"] == _carta["figura"]:
+                                                    self.manos[id_jugador-1].pop(i)
+                                                    self.modificar_cartas(id_jugador, -1)
+                                                    break
+                                        self.jugadas_por_jugador[id_donde_bajarse][0][-1].extend(cartas_expandir)
+                                        self.extender_confirmado(id_jugador,id_donde_bajarse)
+                                    elif validacion_ext_trio2 != False:
+                                        for carta in cartas_expandir:
+                                            for i, _carta in enumerate(self.manos[id_jugador-1]):
+                                                _carta = _carta.to_dict()
+                                                if carta["numero"] == _carta["numero"] and carta["figura"] == _carta["figura"]:
+                                                    self.manos[id_jugador-1].pop(i)
+                                                    self.modificar_cartas(id_jugador, -1)
+                                                    break
+                                        self.jugadas_por_jugador[id_donde_bajarse][1][-1].extend(cartas_expandir)
+                                        self.extender_confirmado(id_jugador,id_donde_bajarse)
+                                    elif validacion_ext_trio3 != False:
+                                        for carta in cartas_expandir:
+                                            for i, _carta in enumerate(self.manos[id_jugador-1]):
+                                                _carta = _carta.to_dict()
+                                                if carta["numero"] == _carta["numero"] and carta["figura"] == _carta["figura"]:
+                                                    self.manos[id_jugador-1].pop(i)
+                                                    self.modificar_cartas(id_jugador, -1)
+                                                    break
+                                        self.jugadas_por_jugador[id_donde_bajarse][2][-1].extend(cartas_expandir)
+                                        self.extender_confirmado(id_jugador,id_donde_bajarse)
+                                        break
+                            
                         
                         # ELECCION DONDE EXTENDER
                         elif mensaje["type"] == "elecion_donde_extender":
-                            # Código existente...
-                            pass
+                            print(mensaje)
+                            if self.ronda == 1:
+                                if mensaje["donde_extender"] == "trio":
+                                    id_donde_bajarse = self.informacion_extender[0]
+                                    cartas_expandir = self.informacion_extender[-1]
+                                    for carta in cartas_expandir:
+                                        for i, _carta in enumerate(self.manos[id_jugador-1]):
+                                            _carta = _carta.to_dict()
+                                            if carta["numero"] == _carta["numero"] and carta["figura"] == _carta["figura"]:
+                                                self.manos[id_jugador-1].pop(i)
+                                                self.modificar_cartas(id_jugador, -1)
+                                                break
+                                    self.jugadas_por_jugador[id_donde_bajarse][0][-1].extend(cartas_expandir)
+                                    self.extender_confirmado(id_jugador,id_donde_bajarse)
+                                if mensaje["donde_extender"] == "seguidilla":
+                                    if mensaje["posicion_seguidilla"] == "inicio":
+                                        id_donde_bajarse = self.informacion_extender[0]
+                                        cartas_expandir = self.informacion_extender[-1]
+                                        for carta in cartas_expandir:
+                                            for i, _carta in enumerate(self.manos[id_jugador-1]):
+                                                _carta = _carta.to_dict()
+                                                if carta["numero"] == _carta["numero"] and carta["figura"] == _carta["figura"]:
+                                                    self.manos[id_jugador-1].pop(i)
+                                                    self.modificar_cartas(id_jugador, -1)
+                                                    break
+                                        self.jugadas_por_jugador[id_donde_bajarse][-1][-1].insert(0, cartas_expandir[0])
+                                        print("Seguidilla extendida al inicio")
+                                        self.extender_confirmado(id_jugador,id_donde_bajarse)
+                                    elif mensaje["posicion_seguidilla"] == "final":
+                                        id_donde_bajarse = self.informacion_extender[0]
+                                        cartas_expandir = self.informacion_extender[-1]
+                                        for carta in cartas_expandir:
+                                            for i, _carta in enumerate(self.manos[id_jugador-1]):
+                                                _carta = _carta.to_dict()
+                                                if carta["numero"] == _carta["numero"] and carta["figura"] == _carta["figura"]:
+                                                    self.manos[id_jugador-1].pop(i)
+                                                    break
+                                        self.jugadas_por_jugador[id_donde_bajarse][-1][-1].extend(cartas_expandir)
+                                        print("Seguidilla extendida al final")
+                                        self.extender_confirmado(id_jugador,id_donde_bajarse)
+                            elif self.ronda == 2:
+                                if mensaje["donde_extender"] == "seguidilla1":
+                                    if mensaje["posicion_seguidilla"] == "inicio":
+                                        id_donde_bajarse = self.informacion_extender[0]
+                                        cartas_expandir = self.informacion_extender[-1]
+                                        for carta in cartas_expandir:
+                                            for i, _carta in enumerate(self.manos[id_jugador-1]):
+                                                _carta = _carta.to_dict()
+                                                if carta["numero"] == _carta["numero"] and carta["figura"] == _carta["figura"]:
+                                                    self.manos[id_jugador-1].pop(i)
+                                                    self.modificar_cartas(id_jugador, -1)
+                                                    break
+                                        self.jugadas_por_jugador[id_donde_bajarse][-1][-1].extend(cartas_expandir)
+                                        print("Seguidilla extendida al final")
+                                        self.extender_confirmado(id_jugador,id_donde_bajarse)
+                            elif self.ronda == 2:
+                                if mensaje["donde_extender"] == "seguidilla1":
+                                    if mensaje["posicion_seguidilla"] == "inicio":
+                                        id_donde_bajarse = self.informacion_extender[0]
+                                        cartas_expandir = self.informacion_extender[-1]
+                                        for carta in cartas_expandir:
+                                            for i, _carta in enumerate(self.manos[id_jugador-1]):
+                                                _carta = _carta.to_dict()
+                                                if carta["numero"] == _carta["numero"] and carta["figura"] == _carta["figura"]:
+                                                    self.manos[id_jugador-1].pop(i)
+                                                    self.modificar_cartas(id_jugador, -1)
+                                                    break
+                                        self.jugadas_por_jugador[id_donde_bajarse][0][-1].insert(0, cartas_expandir[0])
+                                        print("Seguidilla extendida al inicio")
+                                        mano_nueva = self.convertir_mano_dic(id_jugador)
+                                        self.extender_confirmado(id_jugador,id_donde_bajarse)
+                                    elif mensaje["posicion_seguidilla"] == "final":
+                                        id_donde_bajarse = self.informacion_extender[0]
+                                        cartas_expandir = self.informacion_extender[-1]
+                                        for carta in cartas_expandir:
+                                            for i, _carta in enumerate(self.manos[id_jugador-1]):
+                                                _carta = _carta.to_dict()
+                                                if carta["numero"] == _carta["numero"] and carta["figura"] == _carta["figura"]:
+                                                    self.manos[id_jugador-1].pop(i)
+                                                    self.modificar_cartas(id_jugador, -1)
+                                                    break
+                                        self.jugadas_por_jugador[id_donde_bajarse][0][-1].extend(cartas_expandir)
+                                        print("Seguidilla extendida al final")
+                                        self.extender_confirmado(id_jugador,id_donde_bajarse)
+                                elif mensaje["donde_extender"] == "seguidilla2":
+                                    if mensaje["posicion_seguidilla"] == "inicio":
+                                        id_donde_bajarse = self.informacion_extender[0]
+                                        cartas_expandir = self.informacion_extender[-1]
+                                        for carta in cartas_expandir:
+                                            for i, _carta in enumerate(self.manos[id_jugador-1]):
+                                                _carta = _carta.to_dict()
+                                                if carta["numero"] == _carta["numero"] and carta["figura"] == _carta["figura"]:
+                                                    self.manos[id_jugador-1].pop(i)
+                                                    self.modificar_cartas(id_jugador, -1)
+                                                    break
+                                        self.jugadas_por_jugador[id_donde_bajarse][-1][-1].insert(0, cartas_expandir[0])
+                                        print("Seguidilla extendida al inicio")
+                                        mano_nueva = self.convertir_mano_dic(id_jugador)
+                                        self.extender_confirmado(id_jugador,id_donde_bajarse)
+                                    elif mensaje["posicion_seguidilla"] == "final":
+                                        id_donde_bajarse = self.informacion_extender[0]
+                                        cartas_expandir = self.informacion_extender[-1]
+                                        for carta in cartas_expandir:
+                                            for i, _carta in enumerate(self.manos[id_jugador-1]):
+                                                _carta = _carta.to_dict()
+                                                if carta["numero"] == _carta["numero"] and carta["figura"] == _carta["figura"]:
+                                                    self.manos[id_jugador-1].pop(i)
+                                                    self.modificar_cartas(id_jugador, -1)
+                                                    break
+                                        self.jugadas_por_jugador[id_donde_bajarse][-1][-1].extend(cartas_expandir)
+                                        print("Seguidilla extendida al final")
+                                        self.extender_confirmado(id_jugador,id_donde_bajarse)
+                            elif self.ronda == 3:
+                                if mensaje["donde_extender"] == "trio1":
+                                    id_donde_bajarse = self.informacion_extender[0]
+                                    cartas_expandir = self.informacion_extender[-1]
+                                    for carta in cartas_expandir:
+                                        for i, _carta in enumerate(self.manos[id_jugador-1]):
+                                            _carta = _carta.to_dict()
+                                            if carta["numero"] == _carta["numero"] and carta["figura"] == _carta["figura"]:
+                                                self.manos[id_jugador-1].pop(i)
+                                                self.modificar_cartas(id_jugador, -1)
+                                                break
+                                    self.jugadas_por_jugador[id_donde_bajarse][0][-1].extend(cartas_expandir)
+                                    self.extender_confirmado(id_jugador,id_donde_bajarse)
+                                if mensaje["donde_extender"] == "trio2":
+                                    id_donde_bajarse = self.informacion_extender[0]
+                                    cartas_expandir = self.informacion_extender[-1]
+                                    for carta in cartas_expandir:
+                                        for i, _carta in enumerate(self.manos[id_jugador-1]):
+                                            _carta = _carta.to_dict()
+                                            if carta["numero"] == _carta["numero"] and carta["figura"] == _carta["figura"]:
+                                                self.manos[id_jugador-1].pop(i)
+                                                self.modificar_cartas(id_jugador, -1)
+                                                break
+                                    self.jugadas_por_jugador[id_donde_bajarse][1][-1].extend(cartas_expandir)
+                                    self.extender_confirmado(id_jugador,id_donde_bajarse)
+                                if mensaje["donde_extender"] == "trio3":
+                                    id_donde_bajarse = self.informacion_extender[0]
+                                    cartas_expandir = self.informacion_extender[-1]
+                                    for carta in cartas_expandir:
+                                        for i, _carta in enumerate(self.manos[id_jugador-1]):
+                                            _carta = _carta.to_dict()
+                                            if carta["numero"] == _carta["numero"] and carta["figura"] == _carta["figura"]:
+                                                self.manos[id_jugador-1].pop(i)
+                                                self.modificar_cartas(id_jugador, -1)
+                                                break
+                                    self.jugadas_por_jugador[id_donde_bajarse][2][-1].extend(cartas_expandir)
                         
                         # REEMPLAZAR
                         elif mensaje["type"] == "reemplazar":
-                            # Código existente para reemplazar jokers...
-                            pass
+                            print(mensaje)
+                            print("sei llega el msj")
+                            carta_a_remplazar = []
+                            if mensaje["carta_descartada"] != None:
+                                id_jugador_reemplazado = None
+                                carta_a_remplazar.append(mensaje["carta_descartada"])
+                                print("carta valida")
+                                validaciones_extender = []
+                                for id_j, jugadas_list in list(self.jugadas_por_jugador.items()):
+                                    for idx, entry in enumerate(jugadas_list):
+                                        # entry expected to be (tag, grupo)
+                                        try:
+                                            tag, grupo = entry
+                                        except Exception:
+                                            continue
+                                        if tag == "Seguidilla":
+                                            valor = self.validar_reemplazar_joker_seguidilla(mensaje["carta_descartada"], grupo)
+                                            if valor is not None:
+                                                # guardar validaciÃ³n y reemplazar la jugada en la estructura original
+                                                validaciones_extender.append(valor)
+                                                self.jugadas_por_jugador[id_j][idx] = (tag, valor)
+                                                id_jugador_reemplazado = id_j
+                                                break
+                                if validaciones_extender != []:
+                                    for carta in self.manos[id_jugador-1]:
+                                        try:
+                                            carta_serealizada = carta.to_dict()
+                                        except:
+                                            carta_serealizada = carta
+                                        if carta_serealizada["numero"] == mensaje["carta_descartada"]["numero"] and carta_serealizada["figura"] == mensaje["carta_descartada"]["figura"]:
+                                            self.manos[id_jugador-1].remove(carta)
+                                            self.manos[id_jugador-1].append(Carta(un_juego=None, numero="Joker", figura="Especial"))
+                                            break
+                                    self.difundir_excepcion(id_jugador_reemplazado,{
+                                        "type": "se_extendio",
+                                        "cantidad_manos_jugadores": self.mesa_juego.elementos_mesa["cantidad_manos_jugadores"],
+                                        "jugadas_jugadores": self.jugadas_por_jugador,
+                                    })
+                                    self.enviar_a_cliente(id_jugador,{
+                                        "type": "reemplazar_valido",
+                                        "nueva_mano": self.convertir_mano_dic(id_jugador),
+                                        "jugadas_jugadores": self.jugadas_por_jugador,
+                                        "jugada" :self.jugadas_por_jugador[id_jugador],
+                                        })
+                                    self.enviar_a_cliente(id_jugador_reemplazado,{
+                                        "type": "reemplazaron_tu_jugada",
+                                        "cantidad_manos_jugadores": self.mesa_juego.elementos_mesa["cantidad_manos_jugadores"],
+                                        "jugadas_jugadores": self.jugadas_por_jugador,
+                                        "jugadas_jugadores": self.jugadas_por_jugador,
+                                        "jugada" :self.jugadas_por_jugador[id_jugador_reemplazado],
+                                        })
+                            
                         
                         # ACTUALIZAR MANO CHEAT
-                        elif mensaje.get("type") == "ActualizarManoCheat":
-                            nuevas_cartas_dict = mensaje.get("mano", [])
-                            try:
-                                nueva_mano = []
-                                for c in nuevas_cartas_dict:
-                                    nueva_mano.append(Carta(
-                                        un_juego=None,
-                                        numero=c.get("numero"),
-                                        figura=c.get("figura")
-                                    ))
-                                self.manos[id_jugador - 1] = nueva_mano
-                                for jug_info in self.mesa_juego.elementos_mesa.get("cantidad_manos_jugadores", []):
-                                    if jug_info["id"] == id_jugador:
-                                        jug_info["cantidad_mano"] = len(nueva_mano)
-                                        break
-                                print(f"[CheatSync] Mano del servidor para jugador {id_jugador} actualizada")
-                            except Exception as e:
-                                print(f"[CheatSync] Error actualizando mano cheat en servidor: {e}")
+                        #elif mensaje.get("type") == "ActualizarManoCheat":
+                         #   nuevas_cartas_dict = mensaje.get("mano", [])
+                          #  try:
+                           #     nueva_mano = []
+                            #    for c in nuevas_cartas_dict:
+                             #       nueva_mano.append(Carta(
+                              #          un_juego=None,
+                               #         numero=c.get("numero"),
+                                #        figura=c.get("figura")
+                                 #   ))
+                                #self.manos[id_jugador - 1] = nueva_mano
+                                #for jug_info in self.mesa_juego.elementos_mesa.get("cantidad_manos_jugadores", []):
+                                #    if jug_info["id"] == id_jugador:
+                                 #       jug_info["cantidad_mano"] = len(nueva_mano)
+                                  #      break
+                                #print(f"[CheatSync] Mano del servidor para jugador {id_jugador} actualizada")
+                            #except Exception as e:
+                             #   print(f"[CheatSync] Error actualizando mano cheat en servidor: {e}")
+
+                    # FIX Bug 2: Sincronizar mano del servidor con el cheat del cliente
+                    if mensaje.get("type") == "ActualizarManoCheat":
+                        nuevas_cartas_dict = mensaje.get("mano", [])
+                        try:
+                            nueva_mano = []
+                            for c in nuevas_cartas_dict:
+                                nueva_mano.append(Carta(
+                                    un_juego=None,
+                                    numero=c.get("numero"),
+                                    figura=c.get("figura")
+                                ))
+                            self.manos[id_jugador - 1] = nueva_mano
+
+                            # NUEVO: Actualizar contador de cartas en cantidad_manos_jugadores
+                            for jug_info in self.mesa_juego.elementos_mesa.get("cantidad_manos_jugadores", []):
+                                if jug_info["id"] == id_jugador:
+                                    jug_info["cantidad_mano"] = len(nueva_mano)
+                                    break
+
+                            # NUEVO: Notificar a todos los jugadores la cantidad actualizada
+                            self.difundir_excepcion(id_jugador, {
+                                "type": "se_bajo_alguien",  # Reutiliza mensaje existente para actualizar contadores
+                                "cantidad_manos_jugadores": self.mesa_juego.elementos_mesa.get("cantidad_manos_jugadores"),
+                                "jugadas_jugadores": self.jugadas_por_jugador,
+                            })
+
+                            print(f"[CheatSync] Mano servidor jugador {id_jugador}: "
+                                f"{[str(c) for c in nueva_mano]}")
+                        except Exception as e:
+                            print(f"[CheatSync] Error: {e}")
+                    # FIN NUEVO CÓDIGO
 
         except Exception as e:
             print(f"[Redes] Excepción crítica en hilo de cliente {id_jugador}: {e}")
@@ -888,4 +1380,5 @@ class ProcesadorMensajesMixin:
             try:
                 socket_cliente.close()
             except:
+                pass
                 pass

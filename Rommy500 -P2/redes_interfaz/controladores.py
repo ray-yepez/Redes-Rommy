@@ -396,7 +396,7 @@ def mostrar_mesa(un_juego,clase_mesa_interfaz,datos):
                 mesa_actual = un_juego.mesa_juego if hasattr(un_juego, 'mesa_juego') else clase_mesa_interfaz
                 for jugador in getattr(mesa_actual, 'lista_jugadores_objetos', []):
                     try:
-                        puntuaciones_previas[jugador.nro_jugador] = getattr(jugador, 'puntos_acumulados', 0)
+                       puntuaciones_previas[str(jugador.nro_jugador)] = getattr(jugador, 'puntos_acumulados', 0)
                     except Exception:
                         continue
             except Exception:
@@ -415,9 +415,13 @@ def mostrar_mesa(un_juego,clase_mesa_interfaz,datos):
             try:
                 for jugador in getattr(clase_mesa_interfaz, 'lista_jugadores_objetos', []):
                     puntos_prev = puntuaciones_previas.get(jugador.nro_jugador)
+                    puntos_prev = puntuaciones_previas.get(str(jugador.nro_jugador))
                     if puntos_prev is not None:
                         try:
                             setattr(jugador, 'puntos_acumulados', puntos_prev)
+                            # ---> NUEVO: Inyectar los puntos a la credencial visual
+                            if hasattr(jugador, 'usuario') and jugador.usuario:
+                                jugador.usuario.puntos = puntos_prev
                         except Exception:
                             pass
                 # Actualizar la tabla/contador visual si existe
@@ -430,7 +434,7 @@ def mostrar_mesa(un_juego,clase_mesa_interfaz,datos):
                                 id_local = clase_mesa_interfaz.elementos_mesa.get('id_jugador')
                                 # Buscar jugador local y actualizar puntos de ronda acumulados mostrados
                                 for j in clase_mesa_interfaz.lista_jugadores_objetos:
-                                    if getattr(j, 'nro_jugador', None) == id_local:
+                                    if str(getattr(j, 'nro_jugador', None)) == str(id_local):
                                         # Preferir mostrar los puntos acumulados (como en la tabla de puntuación)
                                         try:
                                             puntos_local = getattr(j, 'puntos_acumulados', getattr(j, 'puntos_ronda_actual', 0))
@@ -868,11 +872,35 @@ def _manejar_evento_concluir_ronda(un_juego, evento):
             except Exception:
                 pass
 
-        # ── 4. Forzar reconstrucción visual ───────────────────────────────────
+       # ── 4. Forzar reconstrucción visual ───────────────────────────────────
         try:
             if hasattr(mesa_interfaz_obj, "manejar_partida") and un_juego.mesa:
+                # 1. Guardar los puntos en una caja fuerte antes de limpiar la mesa
+                puntuaciones_previas = {}
+                for j in getattr(mesa_interfaz_obj, 'lista_jugadores_objetos', []):
+                    puntuaciones_previas[str(j.nro_jugador)] = getattr(j, 'puntos_acumulados', 0)
+                
+                # 2. Limpiar y reconstruir la mesa (esto los reseteaba a cero)
                 mesa_interfaz_obj.manejar_partida(un_juego.mesa)
-                print("[ConcluirRonda] manejar_partida() ejecutado.")
+                
+                # 3. Devolver los puntos a los paneles públicos debajo de los nombres
+                for j in getattr(mesa_interfaz_obj, 'lista_jugadores_objetos', []):
+                    puntos_guardados = puntuaciones_previas.get(str(j.nro_jugador), 0)
+                    setattr(j, 'puntos_acumulados', puntos_guardados)
+                    if hasattr(j, 'usuario') and j.usuario:
+                        j.usuario.puntos = puntos_guardados
+                
+                # 4. Asegurar que tu contador personal "Tus Puntos" tampoco se quede en 0
+                contador = mesa_interfaz_obj.referencia_elementos.get("contador_puntos")
+                if contador is not None:
+                    puntos_local = puntuaciones_previas.get(str(id_local), 0)
+                    contador.texto = f"Tus Puntos: {puntos_local}"
+                    try:
+                        contador.prepar_texto()
+                    except:
+                        pass
+                
+                print("[ConcluirRonda] manejar_partida() ejecutado y puntos restaurados sin glitch.")
         except Exception as e:
             print(f"[ConcluirRonda] Error en manejar_partida: {e}")
 

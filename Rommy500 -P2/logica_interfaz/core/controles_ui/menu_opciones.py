@@ -27,7 +27,7 @@ class MenuOpcionesMixin:
         
         if boton_puntos:
             # Posición X: A la derecha de "Tus Puntos" con 15 px de separación
-            x = boton_puntos.x + boton_puntos.ancho + 15
+            x = boton_puntos.x + boton_puntos.ancho + 0.5
             
             # Posición Y: Alineamos los CENTROS para que se vean parejos
             centro_y_puntos = boton_puntos.y + (boton_puntos.alto // 2)
@@ -153,7 +153,7 @@ class MenuOpcionesMixin:
         opciones = [
             ("REANUDAR", self.reanudar_juego),
             ("CÓMO SE JUEGA", self.mostrar_instrucciones),
-            ("SALIR DE LA PARTIDA", self.salir_partida)
+            ("SALIR DE LA PARTIDA", self.crear_aviso_confirmar_salida)
         ]
         
         for i, (texto, accion) in enumerate(opciones):
@@ -304,6 +304,135 @@ class MenuOpcionesMixin:
             if hasattr(self, 'menus_activos'):
                 self.menus_activos.append(self.un_juego.menu_instrucciones)
 
+
+    def crear_aviso_confirmar_salida(self):
+        """Muestra un aviso de confirmación antes de salir de la partida."""
+        import pygame
+        from recursos_graficos import constantes
+        from logica_interfaz.archivo_de_importaciones import importar_desde_carpeta
+        from recursos_graficos.elementos_de_interfaz_de_usuario import Elemento_texto
+
+        print("DEBUG: Mostrando aviso de salida")
+
+        ancho_aviso = constantes.ANCHO_VENTANA * 0.45
+        alto_aviso = constantes.ALTO_VENTANA * 0.40
+
+        x, y = self.un_juego.centrar(ancho_aviso, alto_aviso)
+
+        aviso_salida = Menu(
+            self.un_juego,
+            ancho_aviso,
+            alto_aviso,
+            x,
+            y,
+            None,
+            constantes.SIN_COLOR,
+            constantes.SIN_BORDE,
+            0
+        )
+
+        try:
+            ruta_fondo = importar_desde_carpeta(
+                nombre_archivo="Imagenes/fondos/fondo_aviso.png",
+                nombre_carpeta="assets"
+            )
+
+            img = pygame.image.load(ruta_fondo).convert_alpha()
+            img = pygame.transform.smoothscale(
+                img,
+                (int(ancho_aviso), int(alto_aviso))
+            )
+
+            aviso_salida.agregar_imagen(img, (0, 0), 1)
+
+        except Exception as e:
+            print(f"Error cargando fondo_aviso.png: {e}")
+
+        self.un_juego.aviso_salida_partida = aviso_salida
+
+        if aviso_salida not in self.un_juego.elementos_creados:
+            self.un_juego.elementos_creados.append(aviso_salida)
+
+        aviso_salida.mostrar()
+
+        texto_aviso = Elemento_texto(
+            un_juego=self.un_juego,
+            texto="¿Estás Seguro Que Desea Salir De La Partida?",
+            ancho=ancho_aviso * 0.8,
+            alto=80,
+            x=(ancho_aviso * 0.72),
+            y=(alto_aviso * 1.10),
+            tamaño_fuente=30,
+            fuente=constantes.FUENTE_ESTANDAR,
+            color=None,
+            radio_borde=0,
+            color_texto=(255,255,255),
+            color_borde=None,
+            grosor_borde=0
+        )
+
+        aviso_salida.botones.append(texto_aviso)
+
+        boton_si = aviso_salida.crear_elemento(
+            x=ancho_aviso * 0.33,
+            y=alto_aviso * 0.65,
+            funcion=True,
+            ancho=80,
+            alto=50,
+            texto=" ",
+            accion=lambda: self.salir_partida(),
+            tp_color="s",
+            tp_borde="n"
+        )
+
+        try:
+            ruta_si = importar_desde_carpeta(
+                nombre_archivo="Imagenes/botones/boton_si.png",
+                nombre_carpeta="assets"
+            )
+
+            img_si = pygame.image.load(ruta_si).convert_alpha()
+            img_si = pygame.transform.smoothscale(img_si, (100, 50))
+
+            boton_si.superficie_texto = img_si
+            boton_si.rect_texto = img_si.get_rect(
+                center=boton_si.rect.center
+            )
+
+        except Exception as e:
+            print(f"Error cargando boton_si.png: {e}")
+
+
+        boton_no = aviso_salida.crear_elemento(
+            x=ancho_aviso * 0.55,
+            y=alto_aviso * 0.65,
+            funcion=True,
+            ancho=80,
+            alto=50,
+            texto=" ",
+            accion=lambda: aviso_salida.ocultar(),
+            tp_color="s",
+            tp_borde="n"
+        )
+
+        try:
+            ruta_no = importar_desde_carpeta(
+                nombre_archivo="Imagenes/botones/boton_no.png",
+                nombre_carpeta="assets"
+            )
+
+            img_no = pygame.image.load(ruta_no).convert_alpha()
+            img_no = pygame.transform.smoothscale(img_no, (100, 50))
+
+            boton_no.superficie_texto = img_no
+            boton_no.rect_texto = img_no.get_rect(
+                center=boton_no.rect.center
+            )
+
+        except Exception as e:
+            print(f"Error cargando boton_no.png: {e}")
+
+
     def salir_partida(self):
         """Sale de la partida actual"""
         print("DEBUG: Salir de partida - Desconectando...")
@@ -325,13 +454,25 @@ class MenuOpcionesMixin:
         self._mostrar_menu_principal()
         self.un_juego.mesa_juego = None
     def _desconectar_del_servidor(self):
-        """Maneja la desconexión del servidor"""
-        if hasattr(self, 'instacia_conexion') and self.instacia_conexion:
-            try:
-                self.instacia_conexion.desconectar()
-                print("Desconexión del servidor completada")
-            except Exception as e:
-                print(f"Error al desconectar: {e}")
+        """Desconecta al jugador actual de la partida."""
+
+        from redes_interfaz import controladores
+
+        cliente = getattr(controladores, "cliente_rummy", None)
+
+        if cliente is None:
+            print("[Interfaz] No existe controladores.cliente_rummy")
+            return
+
+        try:
+            if hasattr(cliente, "desconectar_cliente"):
+                cliente.desconectar_cliente()
+                print("[Interfaz] Jugador desconectado con desconectar_cliente()")
+            else:
+                print("[Interfaz] cliente_rummy no tiene desconectar_cliente()")
+
+        except Exception as e:
+            print(f"[Interfaz] Error al desconectar cliente: {e}")
 
     def _limpiar_interfaz(self):
         """Limpia todos los elementos de la interfaz de la partida"""

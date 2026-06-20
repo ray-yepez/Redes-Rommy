@@ -42,9 +42,8 @@ class CargaVisualesMixin:
      #cambio lismar
     def cargar_elementos_jugadores(self, mesa, posiciones, ancho_jugador, alto_jugador):
         """Carga los elementos visuales de todos los jugadores"""
-        for jugador in self.lista_jugadores_objetos: 
-            indice_jugador = jugador.nro_jugador - 1
-            direccion, alineacion = posiciones[indice_jugador]
+        for indice_visual, jugador in enumerate(self.lista_jugadores_objetos): 
+            direccion, alineacion = posiciones[indice_visual]
             
             # Usar método reutilizable
             jugador = self.configurar_posicion_jugador(jugador, direccion, alineacion, ancho_jugador, alto_jugador)

@@ -23,13 +23,30 @@ class MostrarMixin:
         ancho_jugador = constantes.ELEMENTO_GRANDE_ANCHO * 0.40
 
         cantidad_jugadores = len(self.lista_jugadores_objetos)
-        tipo_posiciones = "pocos_jugadores" if cantidad_jugadores < 5 else "muchos_jugadores"
-
         posiciones_base = self.posiciones_por_cantidad[cantidad_jugadores]
-        indices = self.permutaciones_por_jugador[cantidad_jugadores][self.elementos_mesa["id_jugador"]]
+
+        id_local = self.elementos_mesa["id_jugador"]
+
+        ids_activos = [jugador.nro_jugador for jugador in self.lista_jugadores_objetos]
+
+        if id_local in ids_activos:
+            indice_visual_local = ids_activos.index(id_local)
+        else:
+            indice_visual_local = 0
+
+        
+        clave_perm = indice_visual_local + 1
+
+        indices = self.permutaciones_por_jugador[cantidad_jugadores][clave_perm]
+
         posiciones = [posiciones_base[i] for i in indices]
 
-        self.cargar_elementos_jugadores(mesa, posiciones, ancho_jugador, alto_jugador)
+        self.cargar_elementos_jugadores(
+            mesa,
+            posiciones,
+            ancho_jugador,
+            alto_jugador
+        )
 
     def mostrar_manos(self, mesa):
         """Muestra las manos de todos los jugadores"""
@@ -264,7 +281,7 @@ class MostrarMixin:
             accion=None,
         )
 
-        escala_modal = constantes.ESCALA_CARTAS * 1.4
+        escala_modal = constantes.ESCALA_CARTAS * 1.1
         padding = 20
         alto_fila_superior = alto_titulo_elem + 15
 

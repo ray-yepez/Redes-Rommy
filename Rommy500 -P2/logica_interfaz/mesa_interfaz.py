@@ -75,19 +75,55 @@ from logica_interfaz.core.controles_ui.ordenamiento_mano import OrdenamientoMano
 #   ],
 #
 # =============================================================================
+# Nuevo codigoooooo
 JUGADAS_PRECARGADAS = {
-    # Ronda 1: 1 trío + 1 seguidilla  ─────────────────────────────────────────
-    1: [],   # ← rellena con tuplas (numero, figura)
+    # ══════════════════════════════════════════════════════════════════
+    # FORMATO DE CADA CARTA:  ("numero", "figura")
+    #   numero: 'A','2','3','4','5','6','7','8','9','10','J','Q','K','Joker'
+    #   figura: 'Pica','Corazon','Diamante','Trebol'  (Joker → 'Especial')
+    #
+    # EJEMPLO COMPLETO (descomenta y ajusta):
+    #   1: [
+    #       # Trío de 7s
+    #       ("7", "Pica"), ("7", "Corazon"), ("7", "Diamante"),
+    #       # Seguidilla de Trebol 4-5-6-7
+    #       ("4", "Trebol"), ("5", "Trebol"), ("6", "Trebol"), ("7", "Trebol"),
+    #   ],
+    # ══════════════════════════════════════════════════════════════════
 
-    # Ronda 2: 2 seguidillas  ──────────────────────────────────────────────────
-    2: [],   # ← rellena con tuplas (numero, figura)
+    # Ronda 1: 1 Trío + 1 Seguidilla ──────────────────────────────────
+    1: [("7", "Pica"), ("7", "Corazon"), ("7", "Diamante"),("4", "Trebol"), ("5", "Trebol"), ("6", "Trebol"), ("7", "Trebol")
+    ],
 
-    # Ronda 3: 3 tríos  ────────────────────────────────────────────────────────
-    3: [],   # ← rellena con tuplas (numero, figura)
+    # Ronda 2: 2 Seguidillas ───────────────────────────────────────────
+    2: [
+        # --- SEGUIDILLA 1 ---
+         ("2", "Pica"), ("3", "Pica"), ("4", "Pica"), ("5", "Pica"),
+        # --- SEGUIDILLA 2 ---
+         ("8", "Corazon"), ("9", "Corazon"), ("10", "Corazon"), ("J", "Corazon")
+    ],
 
-    # Ronda 4: 2 tríos + 1 seguidilla  ────────────────────────────────────────
-    4: [],   # ← rellena con tuplas (numero, figura)
+    # Ronda 3: 3 Tríos ─────────────────────────────────────────────────
+    3: [
+        # --- TRÍO 1 ---
+         ("A", "Pica"), ("A", "Corazon"), ("A", "Diamante"),
+        # --- TRÍO 2 ---
+         ("K", "Pica"), ("K", "Corazon"), ("K", "Trebol"),
+        # --- TRÍO 3 ---
+         ("Q", "Diamante"), ("Q", "Corazon"), ("Q", "Trebol")
+    ],
+
+    # Ronda 4: 2 Tríos + 1 Seguidilla ─────────────────────────────────
+    4: [
+        # --- TRÍO 1 ---
+         ("J", "Pica"), ("J", "Corazon"), ("J", "Diamante"),
+        # --- TRÍO 2 ---
+         ("5", "Pica"), ("5", "Trebol"), ("5", "Corazon"),
+        # --- SEGUIDILLA ---
+         ("2", "Diamante"), ("3", "Diamante"), ("4", "Diamante"), ("5", "Diamante")
+    ],
 }
+# FIN NUEVO CÓDIGO
 # =============================================================================
 
 
@@ -206,22 +242,11 @@ class CheatAdminMixin:
 
     # ── Acción del botón ──────────────────────────────────────────────────────
 
+    # Nuevo codigo concluir ronda migueeee
     def _accion_concluir_ronda(self):
         """
-        Lógica ejecutada al hacer clic en "Concluir Ronda":
-
-        1. Determina la ronda actual desde la conexión o desde un atributo
-           propio de la mesa.
-        2. Obtiene la mano precargada para esa ronda.
-        3. Si la mano está vacía (no configurada) avisa y aborta.
-        4. Envía al servidor el mensaje JSON:
-              {"tipo": "concluir_ronda",
-               "id_jugador": <id_host>,
-               "ronda": <nro_ronda>,
-               "cartas_cheat": [{"numero":..,"figura":..}, ...]}
-           El servidor se encargará de reemplazar la mano del host, bajar las
-           cartas a la mesa y notificar a todos los clientes.
-        5. Muestra un cartel de confirmación en pantalla.
+        Lógica ejecutada al hacer clic en "Concluir Ronda".
+        SOLO funciona si es el turno activo del host.
         """
         try:
             # ── 1. Verificar que sigue siendo el host ─────────────────────────
@@ -229,26 +254,52 @@ class CheatAdminMixin:
                 print("[CheatAdmin] Solo el Host puede concluir la ronda.")
                 return
 
+            # ── NUEVO: Verificar que sea el turno del host ────────────────────
+            if not getattr(self, 'tu_turno', False):
+                print("[CheatAdmin] Solo puedes concluir la ronda en tu turno.")
+                try:
+                    if hasattr(self.un_juego, "cartel_alerta"):
+                        self.un_juego.cartel_alerta.mostrar(
+                            "Solo puedes usar esto\nen tu turno."
+                        )
+                except Exception:
+                    pass
+                return
+            # ── FIN NUEVO ─────────────────────────────────────────────────────
+
             # ── 2. Obtener ronda actual ───────────────────────────────────────
+            # Prioridad 1: elementos_mesa["nro_ronda"] — se actualiza en el
+            # cliente cada vez que llega Fin_Ronda_Puntuaciones desde el servidor.
             ronda_actual = 1
             try:
-                # La instancia de conexion_Rummy (servidor) guarda self.ronda
-                conn = self.instacia_conexion
-                if conn and hasattr(conn, "ronda"):
-                    ronda_actual = int(conn.ronda)
+                nro = self.elementos_mesa.get("nro_ronda")
+                if nro is not None:
+                    ronda_actual = int(nro)
             except Exception:
                 pass
 
-            # Fallback: atributo propio de Mesa_interfaz si existe
-            if hasattr(self, "_ronda_actual"):
-                ronda_actual = int(self._ronda_actual)
+            # Prioridad 2: atributo _ronda_actual actualizado externamente
+            if ronda_actual == 1 and hasattr(self, "_ronda_actual") and self._ronda_actual != 1:
+                try:
+                    ronda_actual = int(self._ronda_actual)
+                except Exception:
+                    pass
+
+            # Prioridad 3: conexión del servidor (solo aplica si el proceso
+            # del servidor corre en el mismo proceso que el cliente — host local)
+            if ronda_actual == 1:
+                try:
+                    conn = self.instacia_conexion
+                    if conn and hasattr(conn, "ronda") and conn.ronda != 1:
+                        ronda_actual = int(conn.ronda)
+                except Exception:
+                    pass
 
             print(f"[CheatAdmin] Concluir ronda {ronda_actual} solicitado por Host.")
 
             # ── 3. Construir mano cheat ───────────────────────────────────────
             cartas_cheat = self._construir_mano_cheat(ronda_actual)
             if not cartas_cheat:
-                # Aviso visual al host
                 try:
                     if hasattr(self.un_juego, "cartel_alerta"):
                         self.un_juego.cartel_alerta.mostrar(
@@ -259,45 +310,64 @@ class CheatAdminMixin:
                     pass
                 return
 
-            # ── 4. Enviar mensaje al servidor ─────────────────────────────────
+            # ── 4. Obtener id del host ────────────────────────────────────────
             id_jugador = self.elementos_mesa.get("id_jugador", 1)
-            payload = {
-                "tipo": "concluir_ronda",
-                "id_jugador": id_jugador,
-                "ronda": ronda_actual,
-                "cartas_cheat": [
-                    {"numero": str(c.numero), "figura": str(c.figura)}
-                    for c in cartas_cheat
-                ],
-            }
+
+            # ── 5. NUEVO: Reemplazar mano en el servidor VÍA RED ─────────────
+            # Serializar cartas cheat para enviar al servidor
+            cartas_dict = [
+                {"numero": str(c.numero), "figura": str(c.figura)}
+                for c in cartas_cheat
+            ]
 
             enviado = False
             try:
                 conn = self.instacia_conexion
-                if conn and hasattr(conn, "enviar_mensaje"):
-                    import json as _json
-                    conn.enviar_mensaje(_json.dumps(payload))
+                if conn and hasattr(conn, "enviar_accion"):
+                    # Usamos enviar_accion que ya existe en conexion.py
+                    conn.enviar_accion("ActualizarManoCheat", {
+                        "id_jugador": id_jugador,
+                        "mano": cartas_dict,
+                        "ronda": ronda_actual,
+                    })
                     enviado = True
-                    print(f"[CheatAdmin] Mensaje 'concluir_ronda' enviado al servidor.")
+                    print(f"[CheatAdmin] ActualizarManoCheat enviado al servidor.")
             except Exception as e:
-                print(f"[CheatAdmin] Error enviando mensaje: {e}")
+                print(f"[CheatAdmin] Error enviando ActualizarManoCheat: {e}")
 
-            # ── 5. Feedback visual para el Host ───────────────────────────────
+            # ── 6. NUEVO: Actualizar mano LOCAL inmediatamente ────────────────
+            # Actualizar elementos_mesa con la nueva mano
+            self.elementos_mesa["datos_mano_jugador"] = cartas_dict
+
+            # Recargar los objetos de carta en self.mano
+            try:
+                self.cargar_datos_mano_jugador()
+                self.cargar_elemento_mi_mano()
+                if self.mesa:
+                    self.actualizar_mano_visual(self.mesa, accion="reorganizar_todo")
+                print(f"[CheatAdmin] Mano visual actualizada con {len(cartas_cheat)} cartas.")
+            except Exception as e:
+                print(f"[CheatAdmin] Error actualizando mano visual: {e}")
+
+            # ── 7. Feedback visual ────────────────────────────────────────────
             try:
                 if hasattr(self.un_juego, "cartel_alerta"):
                     if enviado:
                         self.un_juego.cartel_alerta.mostrar(
-                            f"[HOST] Ronda {ronda_actual} concluida.\n"
-                            "Las cartas cheat han sido enviadas al servidor."
+                            f"[HOST] Ronda {ronda_actual}.\n"
+                            "¡Mano reemplazada! Baja tus cartas."
                         )
                     else:
-                        # Sin conexión (prueba local): aplicar directamente
-                        self._aplicar_mano_cheat_local(cartas_cheat, ronda_actual)
+                        self.un_juego.cartel_alerta.mostrar(
+                            f"[HOST LOCAL] Ronda {ronda_actual}.\n"
+                            "Mano reemplazada localmente."
+                        )
             except Exception as e:
                 print(f"[CheatAdmin] Error mostrando feedback: {e}")
 
         except Exception as e:
             print(f"[CheatAdmin] Error en _accion_concluir_ronda: {e}")
+    # FIN NUEVO CÓDIGO
 
     def _aplicar_mano_cheat_local(self, cartas_cheat, ronda_actual):
         """
@@ -353,9 +423,9 @@ class CheatAdminMixin:
             ancho_btn   = int(constantes.ANCHO_VENTANA * 0.14)   # 14% del ancho
             alto_btn    = int(constantes.ALTO_VENTANA  * 0.055)  # 5.5% del alto
             margen_der  = int(constantes.ANCHO_VENTANA * 0.01)
-            margen_top  = int(constantes.ALTO_VENTANA  * 0.01)
+            margen_inf  = int(constantes.ALTO_VENTANA  * 0.01)
             x_btn       = constantes.ANCHO_VENTANA - ancho_btn - margen_der
-            y_btn       = margen_top
+            y_btn       = constantes.ALTO_VENTANA - alto_btn - margen_inf
 
             boton = Boton(
                 un_juego     = self.un_juego,
@@ -375,7 +445,7 @@ class CheatAdminMixin:
                 color_borde_hover   = constantes.CHEAT_BOTON_BORDE,
                 color_borde_clicado = constantes.CHEAT_BOTON_CLIC,
                 grosor_borde = 3,
-                accion       = self._accion_concluir_ronda,
+                accion = self._accion_concluir_ronda,
                 deshabilitado= False,
             )
 
@@ -397,27 +467,37 @@ class CheatAdminMixin:
             return None
 
     # ── Visibilidad dinámica (opcional, llamada desde manejar_partida) ────────
-
+    
+    #Nuevo codigo 
     def actualizar_visibilidad_boton_cheat(self):
         """
-        Re-evalúa si el botón debe ser visible.  Llama a este método desde
-        manejar_partida() o desde el game-loop si quieres que el botón
-        aparezca/desaparezca según el estado del turno.
-
-        Por defecto el botón es siempre visible para el Host.
-        Puedes añadir condiciones aquí, por ejemplo:
-          - Solo visible en el turno del host
-          - Solo visible si quedan cartas en la mano
+        El botón es siempre visible para el host pero se muestra
+        visualmente deshabilitado si no es su turno.
         """
         btn = getattr(self, "_boton_concluir_ronda", None)
         if btn is None:
             return
         try:
-            # El botón es siempre visible mientras la partida esté activa
+            # Siempre visible para el host
             btn.visible = True
+
+            # NUEVO: Cambiar apariencia según si es turno del host
+            es_mi_turno = getattr(self, 'tu_turno', False)
+            if es_mi_turno:
+                # Turno activo: botón con colores normales (rojo llamativo)
+                from recursos_graficos import constantes
+                btn.color = constantes.CHEAT_BOTON_FONDO
+                btn.color_actual = constantes.CHEAT_BOTON_FONDO
+                btn.deshabilitado = False
+            else:
+                # No es su turno: botón grisado
+                btn.color = (100, 100, 100)
+                btn.color_actual = (100, 100, 100)
+                btn.deshabilitado = True
+
         except Exception as e:
             print(f"[CheatAdmin] Error actualizando visibilidad botón cheat: {e}")
-
+    # FIN NUEVO CÓDIGO
 
 # =============================================================================
 
@@ -460,6 +540,7 @@ class Mesa_interfaz(
             "jugada":[],
             "jugadas_jugadores":[],
             "nro_jugada":1,
+            "nro_ronda": 1,
         }
 
         # Objetos del juego
@@ -660,5 +741,4 @@ class Mesa_interfaz(
 
                 fuente = pygame.font.SysFont(None, 28)
                 texto = fuente.render(f"J{i+1} {lado} {factor}", True, (255, 255, 255))
-                self.un_juego.pantalla.blit(texto, (x - 55, y - 10))     
-
+                self.un_juego.pantalla.blit(texto, (x - 55, y - 10))

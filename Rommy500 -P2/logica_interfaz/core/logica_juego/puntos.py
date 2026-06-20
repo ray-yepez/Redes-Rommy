@@ -273,14 +273,19 @@ class PuntosMixin:
 
         # Buscar el jugador y actualizar sus puntos
         for jugador in self.lista_jugadores_objetos:
-            if getattr(jugador, 'nro_jugador', None) == nro_jugador:
+            if str(getattr(jugador, 'nro_jugador', None)) == str(nro_jugador):
                 # asegurar atributos existentes
                 setattr(jugador, 'puntos_ronda_actual', puntos_mano)
                 puntos_prev = getattr(jugador, 'puntos_acumulados', 0)
                 setattr(jugador, 'puntos_acumulados', puntos_prev + puntos_mano)
+                
+                # ---> NUEVO: Inyectar los puntos a la credencial visual
+                if hasattr(jugador, 'usuario') and jugador.usuario:
+                    jugador.usuario.puntos = getattr(jugador, 'puntos_acumulados', 0)
+
                 # Si el jugador actualizado es el local, actualizar el contador visual
                 try:
-                    if self.elementos_mesa.get("id_jugador") == nro_jugador:
+                    if str(self.elementos_mesa.get("id_jugador")) == str(nro_jugador):
                         # actualizar estado interno
                         self.puntos_ronda_actual = puntos_mano
                         # actualizar elemento UI si existe
@@ -310,6 +315,11 @@ class PuntosMixin:
                 try:
                     setattr(jugador, 'puntos_ronda_actual', puntos_partida if puntos_partida is not None else 0)
                     setattr(jugador, 'puntos_acumulados', puntos_acumulados if puntos_acumulados is not None else getattr(jugador, 'puntos_acumulados', 0))
+                    
+                    # ---> NUEVO: Inyectar los puntos a la credencial visual creada por Interfaz
+                    if hasattr(jugador, 'usuario') and jugador.usuario:
+                        jugador.usuario.puntos = getattr(jugador, 'puntos_acumulados', 0)
+
                     # Si es el jugador local, actualizar contador visual
                     if self.elementos_mesa.get("id_jugador") == nro_jugador:
                         self.puntos_ronda_actual = puntos_partida if puntos_partida is not None else 0
@@ -329,7 +339,7 @@ class PuntosMixin:
 
     def obtener_puntos_jugador(self, nro_jugador):
         for jugador in self.lista_jugadores_objetos:
-            if getattr(jugador, 'nro_jugador', None) == nro_jugador:
+            if str(getattr(jugador, 'nro_jugador', None)) == str(nro_jugador):
                 return getattr(jugador, 'puntos_acumulados', 0)
         return 0
 

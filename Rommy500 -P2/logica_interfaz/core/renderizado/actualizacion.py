@@ -243,8 +243,12 @@ class ActualizacionMixin:
     def actualizar_carta_descarte(self, mesa):
         """Reemplaza la carta de descarte manteniendo la MISMA posición"""
         if self.carta_descarte is None:
-            mesa.imagenes.remove(self.referencia_elementos["elemento_carta_descarte"])
+            try:
+                mesa.imagenes.remove(self.referencia_elementos["elemento_carta_descarte"])
+            except ValueError:
+                pass
             return
+            
         try:
             # 1. Obtener la posición ABSOLUTA actual de la carta existente
             posicion_absoluta_actual = None

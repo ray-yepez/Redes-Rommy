@@ -28,24 +28,45 @@ class CreacionMesaMixin:
 
     def manejar_partida(self, mesa):
         """Configura todos los elementos de la partida"""
+
+        print("PASO 1: preparar_datos_objetos")
         self.preparar_datos_objetos()
+
+        print("PASO 2: mostrar_jugador")
         self.mostrar_jugador(mesa)
+
+        print("PASO 3: cargar_elemento_mi_mano")
         self.cargar_elemento_mi_mano()
+
+        print("PASO 4: cargar_elemento_carta_descarte")
         self.cargar_elemento_carta_descarte()
+
+        print("PASO 5: mostrar_manos")
         self.mostrar_manos(mesa)
+
+        print("PASO 6: calcular posición mazo")
+        x_relativo, y_relativo, _, _ = self._calcular_posicion_mazo()
+
+        print("PASO 7: mostrar mazos")
         
         # Calcular posición del mazo usando método auxiliar
-        x_relativo, y_relativo, _, _ = self._calcular_posicion_mazo()
         scala = constantes.ESCALA_CARTAS
         accion = lambda: print(f'las cantidad de cartas en el mazo son: {self.elementos_mesa["cantidad_cartas_mazo"]}')
         self.mostrar_mazo(mesa, x_relativo - 45 , y_relativo - 34, scala, accion)
         self.mostrar_carta_descarte(mesa, x_relativo  + 155, y_relativo - 34, scala)
         self.mostrar_mazo_quema(mesa, x_relativo + 310, y_relativo - 34, scala , accion)
 
+        print("PASO 8: crear_contador_puntos")
         self.crear_contador_puntos(mesa)
-        
+
+        print("PASO 9: crear_indicador_turno")
         self.crear_indicador_turno(mesa)
+
+        print("PASO 10: cargar_elemento_botones")
         self.cargar_elemento_botones(mesa)
+
+        print("PASO FINAL: manejar_partida terminó bien")
+
 
     def reiniciar_visual_mesa(self, mesa):
         """Limpia completamente los elementos visuales de la mesa para iniciar una nueva ronda.
