@@ -182,6 +182,9 @@ class GameClient:
             # PLAYER_ORDER es especial: va a incoming_messages para que ui2.py lo lea
             self.state.receivedData = data
             self.state.add_incoming_message(msg_type, data)
+        elif msg_type == MessageType.DEV_HAND_SYNC.value:
+            self.state.receivedData = data
+            self.state.add_incoming_message(msg_type, data)
         elif msg_type == MessageType.UPDATE_PLAYERS.value:
             players = data.get("players")
             if players is not None:

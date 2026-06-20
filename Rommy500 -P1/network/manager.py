@@ -116,7 +116,9 @@ class NetworkManager:
         return self.state.get_moves(server=True)
     
     def canStartGame(self):
-        return len(self.state.get_connected_players()) >= 2
+        count = len(self.state.get_connected_players())
+        max_p = self.state.max_players or 7
+        return count >= 2 and count <= max_p
     
     def startGame(self):
         self.state.game_started = True
@@ -230,9 +232,13 @@ class NetworkManager:
                 'currentPlayers': len(self.state.get_connected_players())
             }
         server = getattr(self, '_current_server', None)
-        if server is not None and self.state.current_player_count is not None:
+        if server is not None:
             server = dict(server)
-            server['currentPlayers'] = self.state.current_player_count
+            if self.state.current_player_count is not None:
+                server['currentPlayers'] = self.state.current_player_count
+            else:
+                # Si aún no se ha recibido UPDATE_PLAYERS, mostrar al menos 1 (host)
+                server['currentPlayers'] = max(1, server.get('currentPlayers', 1))
         return server
     
     def get_exit_gameServer(self):

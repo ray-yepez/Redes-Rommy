@@ -213,14 +213,14 @@ def show_menu_modal(screen, WIDTH, HEIGHT, ASSETS_PATH, ctrl_volumen):
     title_font = pygame.font.Font(font_path, 16)
     vol_font = pygame.font.Font(font_path, 12) # <--- Variable agregada
 
-    # 6. Centrar el control de volumen dinámicamente dentro del modal
-    ancho_total_volumen = (len(ctrl_volumen.rects) * ctrl_volumen.ancho_btn) + ((len(ctrl_volumen.rects) - 1) * ctrl_volumen.espacio)
-    vol_x = x + (w - ancho_total_volumen) // 2
-    vol_y = inicio_y + 120
-    # Actualizamos las posiciones de las barritas de volumen
-    for i, rect in enumerate(ctrl_volumen.rects):
-        rect.x = vol_x + (i * (ctrl_volumen.ancho_btn + ctrl_volumen.espacio))
-        rect.y = vol_y
+    # 6. Centrar el control de volumen dinámicamente dentro del modal 
+    vol_x = x + (w - ctrl_volumen.ancho_icono) // 2
+    vol_y = inicio_y + 100
+    # Actualizamos la posición del icono de volumen
+    ctrl_volumen.x = vol_x
+    ctrl_volumen.y = vol_y
+    ctrl_volumen.rect.x = vol_x
+    ctrl_volumen.rect.y = vol_y
 
     while True:
         for ev in pygame.event.get():
@@ -1069,11 +1069,17 @@ def update_comprar_visibility():
     1. La flag mostrar_boton_comprar sea True
     2. El jugador NO sea quien descartó la carta del tope
     3. El jugador NO sea la mano actual
+    4. El jugador NO sea un espectador (ya alcanzó/superó los 500 puntos)
     """
     global mostrar_boton_comprar, mazo_descarte, jugador_local
     
     # Si ya es False, no hacemos nada
     if not mostrar_boton_comprar:
+        return
+    
+    # Si el jugador local es espectador, nunca debe poder comprar
+    if jugador_local is None or getattr(jugador_local, "isSpectator", False):
+        mostrar_boton_comprar = False
         return
     
     # Aplicar restricciones: si no hay cartas, si es mano, o si es su propio descarte
@@ -1091,7 +1097,8 @@ def update_comprar_visibility():
 # ═══════════════════════════════════════════════════════════════════════════════
 def _dev_cargar_mano_ganadora(jugador_local, visual_hand,
                               cuadros_interactivos, cartas_ref,
-                              roundOne, roundTwo, roundThree, roundFour):
+                              roundOne, roundTwo, roundThree, roundFour,
+                              network_manager=None, players=None):
     """
     [DEV TOOL] Reemplaza la mano de jugador_local con una mano ganadora
     predefinida para la ronda activa y actualiza la visual inmediatamente.
@@ -1206,6 +1213,17 @@ def _dev_cargar_mano_ganadora(jugador_local, visual_hand,
     # variables locales son accesibles. Esta función solo prepara playerHand.
     print(f"[DEV] playerHand reemplazada para {etiqueta_ronda}: "
           f"{[str(c) for c in jugador_local.playerHand]}")
+
+    if network_manager and network_manager.is_host and players is not None:
+        hand_data = [{"value": c.value, "type": c.type, "joker": c.joker} for c in jugador_local.playerHand]
+        sync_msg = {
+            "type": "DEV_HAND_SYNC",
+            "player_id": jugador_local.playerId,
+            "hand": hand_data
+        }
+        network_manager.broadcast_message(sync_msg)
+        print(f"[DEV] Hand sync broadcast enviado a {len(players)-1} clientes")
+
     return f"[DEV] Mano de {etiqueta_ronda} cargada ({len(nueva_mano)} cartas). ¡Ya puedes bajarte!"
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -1301,6 +1319,10 @@ def main(manager_de_red): # <-- Acepta el manager de red
     carta_arrastrada = None
     drag_rect = None
     drag_offset_x = 0
+    #DOBLE CLICKKKKKKKKK
+    tiempo_ultimo_click = 0
+    carta_ultimo_click = None
+    intervalo_doble_click = 350
 
     cartas_ocultas = set()  # Al inicio de main()
     organizar_habilitado = True  # Inicializa la variable
@@ -1346,13 +1368,16 @@ def main(manager_de_red): # <-- Acepta el manager de red
         print("Aviso: No se encontró el sonido de ordenar:", e)
         ordenar_sound = None
 
-#  Cargar sonido para el botón extender
+   # Cargar sonido para el botón extender
     try:
         extender_sound_path = os.path.join(ASSETS_PATH, "sonido", "extender.mp3") 
         extender_sound = pygame.mixer.Sound(extender_sound_path)
     except Exception as e:
         print("Aviso: No se encontró el sonido de extender:", e)
         extender_sound = None
+
+    bajarse_sound_path = os.path.join(ASSETS_PATH, "sonido", "bajarse.wav")
+    bajarse_sound = pygame.mixer.Sound(bajarse_sound_path)
 
     #contJugador = 0
     #contHost = 0
@@ -1376,25 +1401,66 @@ def main(manager_de_red): # <-- Acepta el manager de red
     # Ajusta x, y, w, h según tu layout si es necesario.
     btn_ordenar = pygame.Rect(WIDTH - 190, HEIGHT - 160, 170, 40)
 
+    # --- FIX congelamiento al cambiar de ronda (watchdog cliente) -----------
+    # Si el CLIENTE entra a fase "eleccion" y se queda esperando demasiado
+    # tiempo el PLAYER_ORDER/ELECTION_CARDS que el Host debía enviar (por
+    # ejemplo porque ese único envío falló por timing de red), antes se
+    # quedaba esperando ese mensaje para siempre (pantalla "congelada").
+    # Ahora medimos cuánto tiempo llevamos en "eleccion" y, si se supera
+    # _RESYNC_TIMEOUT_SEGUNDOS sin recibir nada, pedimos al Host que
+    # reenvíe el último estado (REQUEST_RESYNC), reintentando cada
+    # _RESYNC_TIMEOUT_SEGUNDOS hasta que la fase cambie.
+    _fase_anterior_watchdog = None
+    _tiempo_entrada_eleccion = None
+    _ultimo_resync_solicitado = 0
+    _RESYNC_TIMEOUT_SEGUNDOS = 4.0
+
     while running:
         # --- SOLO FASE DE ELECCIÓN ---
         update_descartar_visibility(zona_cartas, roundThree, roundFour)
         update_comprar_visibility()
         update_bajarse_visibility(zona_cartas, roundThree, roundFour)
+
+        # --- Watchdog de fase "eleccion" (solo aplica al CLIENTE) ---
+        if fase != _fase_anterior_watchdog:
+            if fase == "eleccion":
+                _tiempo_entrada_eleccion = time.time()
+                _ultimo_resync_solicitado = 0
+            _fase_anterior_watchdog = fase
+        elif fase == "eleccion" and not network_manager.is_host and _tiempo_entrada_eleccion is not None:
+            ahora = time.time()
+            tiempo_esperando = ahora - _tiempo_entrada_eleccion
+            tiempo_desde_ultimo_resync = ahora - _ultimo_resync_solicitado
+            if tiempo_esperando >= _RESYNC_TIMEOUT_SEGUNDOS and tiempo_desde_ultimo_resync >= _RESYNC_TIMEOUT_SEGUNDOS:
+                print(f"[CLIENTE][AVISO] Lleva {tiempo_esperando:.1f}s esperando el cambio de "
+                      f"ronda sin respuesta del Host. Solicitando resync...")
+                try:
+                    network_manager.request_resync()
+                except Exception as e:
+                    print(f"[CLIENTE][ERROR] No se pudo solicitar resync: {e}")
+                _ultimo_resync_solicitado = ahora
+
         if fase == "eleccion":
             screen.blit(fondo_img, (0, 0))  # Nuevo pero se puede quedar :)
 
             # Procesando mensaje con datos de seleccion de cartas y la lista de jugadores...
             if not network_manager.is_host:
                 # Recuperar los mensajes recibidos del buffer de red
-                if roundOne:
-                    msg = network_manager.get_game_state() 
-                    # Verificar si el mensaje contiene los datos esperados
-                    if isinstance(msg, dict) and msg.get("type") == "ELECTION_CARDS":
-                        print(f"Este es el mensaje recibido en fase eleccion  {type(msg)} {msg}{msg.get('type')}")
-                        players[:] = msg.get("players")
+                # FIX: se eliminó el guard "if roundOne" — ELECTION_CARDS debe
+                # leerse en TODAS las rondas, no solo en la primera.
+                msg = network_manager.get_game_state()
+                if isinstance(msg, dict) and msg.get("type") == "ELECTION_CARDS":
+                    print(f"Este es el mensaje recibido en fase eleccion  {type(msg)} {msg}{msg.get('type')}")
+                    # FIX: validar que 'players' venga con datos antes de hacer el slice-assign;
+                    # un valor None/vacío rompía con TypeError/IndexError y dejaba al cliente
+                    # congelado en esta fase sin avanzar nunca.
+                    players_recibidos = msg.get("players")
+                    if players_recibidos:
+                        players[:] = players_recibidos
                         cartas_eleccion = msg.get("election_cards")
-                        player1 = players[0]  
+                        player1 = players[0]
+                    else:
+                        print("[AVISO] ELECTION_CARDS llegó sin lista de jugadores válida; se ignora este mensaje.")
 
                 # Procesar mensajes entrantes para actualizaciones de elecciones o orden
                 msgList = network_manager.get_incoming_messages()
@@ -1414,6 +1480,25 @@ def main(manager_de_red): # <-- Acepta el manager de red
                             except Exception:
                                 pass
                             break
+                        
+                        if msg[1].get("type") == "DEV_HAND_SYNC":
+                            sync_data = msg[1]
+                            sync_pid = sync_data.get("player_id")
+                            sync_hand = sync_data.get("hand", [])
+                            for p in players:
+                                if p.playerId == sync_pid:
+                                    from Card import Card
+                                    p.playerHand.clear()
+                                    for c in sync_hand:
+                                        p.playerHand.append(
+                                            Card(c["value"], c["type"], c.get("joker", False))
+                                        )
+                                    print(f"[DEV_HAND_SYNC] Mano del jugador {p.playerName} (ID:{sync_pid}) sincronizada: {len(sync_hand)} cartas")
+                                    if jugador_local and jugador_local.playerId == sync_pid:
+                                        print("[DEV_HAND_SYNC] Es nuestro jugador local - actualizando visual")
+                                    break
+                            continue
+                        
                         if msg[1].get("type") == "PLAYER_ORDER":
                             just_went_down_this_turn = False
                             last_inserted_card_data = None
@@ -1430,6 +1515,7 @@ def main(manager_de_red): # <-- Acepta el manager de red
                             buy_finished = False
                             list_confirm_ids = []
                             mostrar_boton_comprar = False
+                            
                             # --- FIN CORRECCIÓN ---
                             print("Jugador: Recibido orden de jugadores")
                             players[:] = msg[1].get("players", [])
@@ -1459,28 +1545,82 @@ def main(manager_de_red): # <-- Acepta el manager de red
                             #puerto_local = network_manager.player.getsockname()[1]
                             id_local = network_manager.player_id
                             print(f"id_local: {id_local}")
+                            # FIX: si por algún motivo el id ya no calza con ningún jugador de la
+                            # lista nueva (ej. reconexión donde el host le asignó otro player_id),
+                            # se intenta recuperar al jugador local por nombre como respaldo, en vez
+                            # de dejar a jugador_local apuntando al objeto viejo de la ronda anterior
+                            # (lo cual provocaba un KeyError silencioso más abajo y congelaba al cliente).
+                            encontrado_por_id = False
                             for p in players:
                                 if p.playerId == id_local: #puerto_local:
                                     jugador_local = p
+                                    encontrado_por_id = True
                                     break
 
-                            jugador_local.playerHand = hands[jugador_local.playerId] 
-                            visual_hand = list(jugador_local.playerHand)  # Copia inicial para el orden visual
+                            if not encontrado_por_id:
+                                nombre_local = getattr(jugador_local, "playerName", None) if jugador_local else None
+                                print(f"[AVISO] No se encontró jugador_local por id ({id_local}) en PLAYER_ORDER. "
+                                      f"Intentando recuperar por nombre: {nombre_local}")
+                                if nombre_local:
+                                    for p in players:
+                                        if p.playerName == nombre_local:
+                                            jugador_local = p
+                                            print(f"[AVISO] jugador_local recuperado por nombre: {nombre_local} (nuevo id: {p.playerId})")
+                                            break
+
+                            # FIX: Actualizar banderas de ronda desde el mensaje
+                            # El host envía roundOne/Two/Three/Four para que el cliente
+                            # siempre esté sincronizado con la ronda real.
+                            _roundOne_msg   = msg[1].get("roundOne",   roundOne)
+                            _roundTwo_msg   = msg[1].get("roundTwo",   roundTwo)
+                            _roundThree_msg = msg[1].get("roundThree", roundThree)
+                            _roundFour_msg  = msg[1].get("roundFour",  roundFour)
+                            roundOne   = _roundOne_msg
+                            roundTwo   = _roundTwo_msg
+                            roundThree = _roundThree_msg
+                            roundFour  = _roundFour_msg
+
+                            # FIX: acceso defensivo a 'hands' — si el id de jugador_local no está
+                            # presente en el diccionario recibido (por ejemplo porque el jugador es
+                            # nuevo, fue espectador, o hubo un desajuste de id), se usa una lista
+                            # vacía en vez de lanzar KeyError, que antes detenía por completo el
+                            # hilo del cliente y dejaba la pantalla "cargando" sin avanzar de fase.
+                            if jugador_local is None:
+                                print("[ERROR] jugador_local es None al recibir PLAYER_ORDER; no se puede asignar mano. "
+                                      "Se omite esta actualización para no congelar el cliente.")
+                            else:
+                                mano_recibida = (hands or {}).get(jugador_local.playerId)
+                                if mano_recibida is None:
+                                    print(f"[AVISO] No se encontró mano para playerId={jugador_local.playerId} en 'hands'. "
+                                          f"Claves disponibles: {list((hands or {}).keys())}. Se asigna mano vacía como fallback.")
+                                    mano_recibida = []
+                                jugador_local.playerHand = mano_recibida
+                                visual_hand = list(jugador_local.playerHand)  # Copia inicial para el orden visual
                             # Limpiar zonas de cartas para todas las rondas
                             zona_cartas[0] = []
                             zona_cartas[0].clear()
                             zona_cartas[1] = []
                             zona_cartas[1].clear()
-                            if roundThree or roundFour:
-                                zona_cartas[2] = []
-                                zona_cartas[2].clear()
+                            # FIX: limpiar zona 2 en rondas 3 y 4; también al entrar
+                            # a ronda 3/4 desde rondas anteriores.
+                            zona_cartas[2] = []
+                            zona_cartas[2].clear()
+                            zona_cartas[3] = []
+                            zona_cartas[3].clear()
                             for idx, carta in enumerate(visual_hand):
                                 if not hasattr(carta, "id_visual"):
                                     carta.id_visual = id(carta)  # O usa idx para algo más simple
 
+                            # Cambiar fase usando las banderas YA sincronizadas
                             # Cambiar fase
                             mensaje_orden = msg[1].get("orden_str", "")
                             tiempo_inicio_orden = time.time()
+                            
+                            round_number = msg[1].get("round_number", 1)
+                            roundOne = (round_number == 1)
+                            roundTwo = (round_number == 2)
+                            roundThree = (round_number == 3)
+                            roundFour = (round_number == 4)
                             
                             if roundOne:
                                 fase = "mostrar_orden"
@@ -1490,6 +1630,8 @@ def main(manager_de_red): # <-- Acepta el manager de red
                                 fase = "ronda3"
                             elif roundFour:
                                 fase = "ronda4"
+                                
+                                
                 # Fin procesar Mensajes de INICIO----  Cargar Mazos, Mano, e isHand... PARA EL JUGADOR...       
             if network_manager.is_host:
                 if roundOne:
@@ -1580,13 +1722,15 @@ def main(manager_de_red): # <-- Acepta el manager de red
                                                 Card("5","♥")]  # Solo una carta para prueba
                     round.hands[jugador_local.playerId] = jugador_local.playerHand'''
                 # Limpiar zonas de cartas para todas las rondas
+                # FIX: se limpian TODAS las zonas siempre, no solo la 2 en rondas 3/4
                 zona_cartas[0] = []
                 zona_cartas[0].clear()
                 zona_cartas[1] = []
                 zona_cartas[1].clear()
-                if roundThree or roundFour:
-                    zona_cartas[2] = []
-                    zona_cartas[2].clear()
+                zona_cartas[2] = []
+                zona_cartas[2].clear()
+                zona_cartas[3] = []
+                zona_cartas[3].clear()
                 # --- INICIO CORRECCIÓN: RESETEAR VARIABLES DE ESTADO EN EL HOST ---
                 bought = False
                 noBuy = True
@@ -1598,7 +1742,18 @@ def main(manager_de_red): # <-- Acepta el manager de red
                 buy_finished = False
                 list_confirm_ids = []
                 mostrar_boton_comprar = False
+                
                 # --- FIN CORRECCIÓN ---'''
+                if roundOne:
+                    current_round_number = 1
+                elif roundTwo:
+                    current_round_number = 2
+                elif roundThree:
+                    current_round_number = 3
+                elif roundFour:
+                    current_round_number = 4
+                else:
+                    current_round_number = 1
                 msgOrden = {
                     "type": "PLAYER_ORDER",
                     "players": players,
@@ -1606,10 +1761,12 @@ def main(manager_de_red): # <-- Acepta el manager de red
                     "round": round,
                     "hands":round.hands,
                     "deckForRound": deckForRound,
-                    "mazo_descarte": mazo_descarte
+                    "mazo_descarte": mazo_descarte,
+                    "round_number": current_round_number
                 }
                 network_manager.broadcast_message(msgOrden)
                 # Cambiar fase
+                
                 mensaje_orden = orden_str.strip()
                 tiempo_inicio_orden = time.time()
                 if roundOne:
@@ -1677,6 +1834,14 @@ def main(manager_de_red): # <-- Acepta el manager de red
                         p.playMade = Jugadas_en_mesa2
                         try:
                             bajarse_sound.play()
+                        except NameError:
+                            # FIX: bajarse_sound no estaba cargado — se carga como fallback
+                            try:
+                                _bs_path = os.path.join(ASSETS_PATH, "sonido", "bajarse.wav")
+                                bajarse_sound = pygame.mixer.Sound(_bs_path)
+                                bajarse_sound.play()
+                            except Exception:
+                                pass  # Sin sonido, el juego continúa normalmente
                         except Exception as e:
                             print("Error al reproducir bajarse_sound:", e)
             
@@ -1748,7 +1913,7 @@ def main(manager_de_red): # <-- Acepta el manager de red
                 if getattr(mazo_descarte[-1], "discarded_by", None) == jugador_local.playerId:
                     mensaje_temporal = f"{player_name_que_pasoD} pasó del descarte. Ha iniciado un ciclo de compra."
                     mensaje_tiempo = time.time()
-                elif not jugador_local.isHand:
+                elif not jugador_local.isHand and not getattr(jugador_local, "isSpectator", False):
                     mostrar_boton_comprar = True  
                     mensaje_temporal = f"{player_name_que_pasoD} pasó del descarte. Compra habilitada temporalmente. Presiona 'COMPRAR CARTA' si deseas comprar."
                     mensaje_tiempo = time.time()
@@ -1766,15 +1931,24 @@ def main(manager_de_red): # <-- Acepta el manager de red
                 waiting = False
                 time_waiting = None
 
-                # players[player_in_turn_id].playerTurn = True
-                for idx, p in enumerate(players):
-
-                    if p.playerId == player_in_turn_id:
-                        players[idx].playerTurn = True
-                        if p.playerId == jugador_local.playerId:
-                            jugador_local.playerTurn = True   #mmmmmmmmmmmmm
-                    else:
+                # FIX espectador: si el jugador en turno de compra es espectador, omitirlo
+                # y limpiar su turno sin activarlo
+                jugador_en_turno_obj = next(
+                    (p for p in players if p.playerId == player_in_turn_id), None
+                )
+                if jugador_en_turno_obj and getattr(jugador_en_turno_obj, "isSpectator", False):
+                    # Es espectador — no asignarle turno, simplemente limpiar todo
+                    for idx, p in enumerate(players):
                         players[idx].playerTurn = False
+                    print(f"[COMPRA] Jugador {player_in_turn_id} es espectador, se omite su turno de compra.")
+                else:
+                    for idx, p in enumerate(players):
+                        if p.playerId == player_in_turn_id:
+                            players[idx].playerTurn = True
+                            if p.playerId == jugador_local.playerId:
+                                jugador_local.playerTurn = True
+                        else:
+                            players[idx].playerTurn = False
 
                 print(f"Lista de jugadores para compra: {players_for_buy_ids}")
                 print(f"Jugador en turno de compra: {[p for p in players if p.playerTurn]}")
@@ -1794,15 +1968,24 @@ def main(manager_de_red): # <-- Acepta el manager de red
                 next_buy_id_pos = (current_buy_pos + 1) % len(players_for_buy_ids)
                 next_buy_id = players_for_buy_ids[next_buy_id_pos]
 
-                for idx, p in enumerate(players):
-
-                    if p.playerId == next_buy_id:
-                        players[idx].playerTurn = True
-                        if p.playerId == jugador_local.playerId:
-                            jugador_local.playerTurn = True
-                    else:
+                # FIX espectador: si el siguiente en la lista es espectador, saltarlo
+                next_jugador_obj = next(
+                    (p for p in players if p.playerId == next_buy_id), None
+                )
+                if next_jugador_obj and getattr(next_jugador_obj, "isSpectator", False):
+                    # Espectador — limpiar turno sin activar a nadie
+                    for idx, p in enumerate(players):
                         players[idx].playerTurn = False
-                        
+                    print(f"[COMPRA] Siguiente jugador {next_buy_id} es espectador, se omite.")
+                else:
+                    for idx, p in enumerate(players):
+                        if p.playerId == next_buy_id:
+                            players[idx].playerTurn = True
+                            if p.playerId == jugador_local.playerId:
+                                jugador_local.playerTurn = True
+                        else:
+                            players[idx].playerTurn = False
+
                 print(f"Lista de jugadores para compra: {players_for_buy_ids}")
                 print(f"Jugador en turno de compra: {[p for p in players if p.playerTurn]}")
 
@@ -2130,7 +2313,8 @@ def main(manager_de_red): # <-- Acepta el manager de red
                         resultado_dev = _dev_cargar_mano_ganadora(
                             jugador_local, visual_hand,
                             cuadros_interactivos, cartas_ref,
-                            roundOne, roundTwo, roundThree, roundFour
+                            roundOne, roundTwo, roundThree, roundFour,
+                            network_manager, players
                         )
                         # ── Reconstrucción visual completa (inline para tener acceso
                         #    a todas las variables locales de main) ──────────────────
@@ -2267,6 +2451,53 @@ def main(manager_de_red): # <-- Acepta el manager de red
                         elif jugada["final"].collidepoint(mouse_x, mouse_y):
                             print(f"Clic en FINAL de la jugada {idx+1} de {jugador} ({jugada['tipo']})")
                 nombre = get_clicked_box(event.pos, cuadros_interactivos)
+
+                # NUEVO CÓDIGO - INSERTAR AQUÍ
+                if nombre and nombre.startswith("Carta_"):
+                    carta_click = cartas_ref.get(nombre)
+                    tiempo_click = pygame.time.get_ticks()
+                    es_doble_click = (
+                        carta_click is not None
+                        and carta_ultimo_click is carta_click
+                        and tiempo_click - tiempo_ultimo_click <= intervalo_doble_click
+                    )
+
+                    if es_doble_click:
+                        if jugador_local and jugador_local.isHand and carta_click in jugador_local.playerHand and jugador_local.canDiscard:
+                            nombre = "Descartar"
+                            dragging = False
+                            carta_arrastrada = None
+                            drag_rect = None
+                            tiempo_ultimo_click = 0
+                            carta_ultimo_click = None
+                        else:
+                            mensaje_temporal = "No puedes descartar esa carta en este momento."
+                            mensaje_tiempo = time.time()
+                            tiempo_ultimo_click = 0
+                            carta_ultimo_click = None
+                            continue
+                    else:
+                        tiempo_ultimo_click = tiempo_click
+                        carta_ultimo_click = carta_click
+                # NUEVO CÓDIGO - INSERTAR AQUÍ
+                else:
+                    rect_tomar_descarte = cuadros_interactivos.get("Tomar descarte")
+                    if rect_tomar_descarte and mazo_descarte and rect_tomar_descarte.collidepoint(event.pos):
+                        carta_click = mazo_descarte[-1]
+                        tiempo_click = pygame.time.get_ticks()
+                        es_doble_click = (
+                            carta_click is not None
+                            and carta_ultimo_click is carta_click
+                            and tiempo_click - tiempo_ultimo_click <= intervalo_doble_click
+                        )
+
+                        if es_doble_click:
+                            nombre = "Tomar descarte"
+                            tiempo_ultimo_click = 0
+                            carta_ultimo_click = None
+                        else:
+                            tiempo_ultimo_click = tiempo_click
+                            carta_ultimo_click = carta_click
                 if nombre and nombre.startswith("Carta_"):
                     idx = int(nombre.split("_")[1])
                     if idx in cartas_ocultas:
@@ -3062,6 +3293,11 @@ def main(manager_de_red): # <-- Acepta el manager de red
                     elif nombre == "Comprar carta":
                         print(f" Click en COMPRAR CARTA... Boton comprar carta")
                         #CAMBIO 2
+                        if getattr(jugador_local, "isSpectator", False):
+                            mensaje_temporal = "Eres espectador: no puedes comprar cartas."
+                            mensaje_tiempo = time.time()
+                            mostrar_boton_comprar = False
+                            continue
                         if not jugador_local.isHand: # El jugador MANO no puede comprar cartas...
 
                             if not bought:
@@ -3086,7 +3322,13 @@ def main(manager_de_red): # <-- Acepta el manager de red
                                     for idx, player in enumerate(players):
                                         if player.playerId == jugador_mano_actual.playerId:
                                             indice_mano_actual = idx
-                                            siguiente_idx = (idx + 1) % len(players)
+                                            # FIX espectador: buscar el siguiente que NO sea espectador
+                                            siguiente_idx_base = (idx + 1) % len(players)
+                                            for _offset in range(len(players)):
+                                                candidato_idx = (siguiente_idx_base + _offset) % len(players)
+                                                if not getattr(players[candidato_idx], "isSpectator", False):
+                                                    siguiente_idx = candidato_idx
+                                                    break
                                             break
 
                                     # noBuy = False
@@ -3094,7 +3336,10 @@ def main(manager_de_red): # <-- Acepta el manager de red
                                     for i in range(1, len(players)):
                                         
                                         idx_jugador_en_compra = (siguiente_idx + (i - 1)) % len(players)
-                                        players_for_buy_ids.append(players[idx_jugador_en_compra].playerId)
+                                        # FIX espectador: no incluir espectadores en el ciclo de compra
+                                        jugador_en_compra = players[idx_jugador_en_compra]
+                                        if not getattr(jugador_en_compra, "isSpectator", False):
+                                            players_for_buy_ids.append(jugador_en_compra.playerId)
 
                                         if idx_jugador_en_compra == indice_jugador_local:
                                             break
@@ -3714,11 +3959,11 @@ def main(manager_de_red): # <-- Acepta el manager de red
                 next_buy_id_pos = (current_buy_pos + 1) % len(players_for_buy_ids)
                 next_buy_id = players_for_buy_ids[next_buy_id_pos] #.playerId
 
+                # FIX espectador: si el siguiente es espectador, no asignarle turno
+                next_obj = next((p for p in players if p.playerId == next_buy_id), None)
                 for idx, p in enumerate(players):
-
                     players[idx].playerTurn = False
-
-                    if p.playerId == next_buy_id:
+                    if p.playerId == next_buy_id and not getattr(next_obj, "isSpectator", False):
                         players[idx].playerTurn = True
 
                 msgPasarCompraC = {
@@ -4246,16 +4491,28 @@ def main(manager_de_red): # <-- Acepta el manager de red
                 fg=(255, 255, 255)
             )
 
-        # 5. Botón "CONCLUIR RONDA" — visible solo para el host
+        # 5. Botón "CONCLUIR RONDA" — visible solo para el host, habilitado solo en su turno
         if network_manager.is_host and jugador_local:
             btn_concluir_ronda = pygame.Rect(WIDTH - 190, HEIGHT - 205, 170, 40)
-            draw_simple_button(
-                screen, btn_concluir_ronda, "Terminar ronda",
-                get_game_font(10),
-                bg=(130, 40, 40),
-                fg=(255, 255, 255)
-            )
-            cuadros_interactivos["Concluir ronda"] = btn_concluir_ronda
+            es_mi_turno = getattr(jugador_local, "isHand", False)
+            if es_mi_turno:
+                draw_simple_button(
+                    screen, btn_concluir_ronda, "Terminar ronda",
+                    get_game_font(10),
+                    bg=(130, 40, 40),
+                    fg=(255, 255, 255)
+                )
+                cuadros_interactivos["Concluir ronda"] = btn_concluir_ronda
+            else:
+                # Botón deshabilitado visualmente (gris) y sin registrar zona de clic
+                draw_simple_button(
+                    screen, btn_concluir_ronda, "Terminar ronda",
+                    get_game_font(10),
+                    bg=(70, 70, 70),
+                    fg=(160, 160, 160)
+                )
+                # Si existía registrada de un frame anterior, la quitamos para que no sea clickeable
+                cuadros_interactivos.pop("Concluir ronda", None)
 
         # Intercambiar SÓLO las zonas interactivas: "Descarte" <-> "ZonaCentralInteractiva".
         # Esto cambia solo el mapeo interactivo (donde se debe soltar una carta), no afecta el dibujo.
@@ -6058,3 +6315,4 @@ tiempo_joker_fondo = 0
 if __name__ == "__main__":
     #ocultar_elementos_visual(screen, fondo_img)  # Solo muestra el fondo al inicio
     main()
+

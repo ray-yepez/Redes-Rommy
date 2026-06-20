@@ -128,6 +128,16 @@ class GameServer:
                 }
                 self.transport.send_atomic(conn, response)
                 
+                # Iniciar el hilo manejador ANTES de hacer broadcast para evitar race condition
+                threading.Thread(
+                    target=self._handle_player,
+                    args=(player,),
+                    daemon=True
+                ).start()
+                
+                # Pequeña pausa para asegurar que el receive_loop del cliente esté activo
+                time.sleep(0.1)
+                
                 #######CAMBIOS PARA EL MENSAJE DE LA SALA################### 
                 #(si. También era necesario colocar esas variables aquí para que el mensaje se actualice al entrar un nuevo jugador, y no solo al host)
                 try:
@@ -138,12 +148,6 @@ class GameServer:
                 
                 self._broadcast_players()
                 self._broadcast_notice(f"{player_name} se ha unido a la sala")
-                # Hilo manejador para este jugador
-                threading.Thread(
-                    target=self._handle_player,
-                    args=(player,),
-                    daemon=True
-                ).start()
                 
             except OSError as e:
                 # Ignorar error de socket cerrado intencionalmente
@@ -191,12 +195,19 @@ class GameServer:
         """Notifica a todos los clientes la nueva lista de jugadores."""
         serializable_players = [(p.addr, p.name, p.player_id) for p in self.state.get_connected_players()]
         message = {"type": "UPDATE_PLAYERS", "players": serializable_players}
+        disconnected = []
         for p in self.state.get_connected_players():
             if not p.is_host:
                 try:
-                    self.transport.send_atomic(p.conn, message)
-                except:
-                    pass
+                    if not self.transport.send_atomic(p.conn, message):
+                        logger.warning(f"No se pudo enviar UPDATE_PLAYERS a {p.name}, marcando como desconectado")
+                        disconnected.append(p.player_id)
+                except Exception as e:
+                    logger.error(f"Error enviando UPDATE_PLAYERS a {p.name}: {e}")
+                    disconnected.append(p.player_id)
+        for pid in disconnected:
+            self.state.remove_connected_player(pid)
+            logger.info(f"Jugador {pid} eliminado por fallo en broadcast de jugadores")
     
     def _broadcast_notice(self, mensaje: str):
         """Envia un aviso a todos los clientes conectados, poara que también les aparezca el popup del aviso de conexión (No solo al HOST)"""

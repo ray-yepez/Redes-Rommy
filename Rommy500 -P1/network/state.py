@@ -127,3 +127,4 @@ class NetworkState:
         """Registra el último milisegundo en que un jugador respondió un ping."""
         with self._lock_players:
             self.last_activity[player_id] = timestamp
+

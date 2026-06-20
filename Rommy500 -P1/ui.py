@@ -237,9 +237,7 @@ class   UIManager:
         # Dimensiones de la pantalla
         self.SCREEN_WIDTH = screen_width
         self.SCREEN_HEIGHT = screen_height
-        self.ASSETS_PATH = os.path.join(os.path.dirname(__file__), "assets")
-        self.FONT_FILE = os.path.join(self.ASSETS_PATH, "PressStart2P-Regular.ttf")
-        self.cacheDeFuentes = {}
+        
         # Manager de red (para conectar con el servidor, enviar/recibir datos)
         self.network_manager = network_manager
         
@@ -330,12 +328,12 @@ class   UIManager:
         try:
             font_for_credits = self.pixel_font if self.pixel_font else pygame.font.SysFont("Arial", self.global_font_size)
             self.credits_surface = font_for_credits.render(
-                "Proyecto realizado por el Equipo 1",
+                "Aquí la única regla es que no hay límites. Deja la cordura en la puerta y reparte.",
                 True,
-                "#d7fcd4"
+                "#ffffff"
             )
         except Exception:
-            self.credits_surface = pygame.font.SysFont(None, self.global_font_size).render("Proyecto realizado por el Equipo 1", True, "#d7fcd4")
+            self.credits_surface = pygame.font.SysFont(None, self.global_font_size).render("Aquí la única regla es que no hay límites. Deja la cordura en la puerta y reparte.", True, "#ffffff")
     # Función para obtener una fuente personalizada o de respaldo
     def get_font(self, size):
         try:
@@ -876,14 +874,15 @@ class   UIManager:
         server_name = ""
         current_p = 0
         max_p = 0
-        if getattr(self.network_manager, "currentServer", None):
-            server_name = self.network_manager.currentServer.get('name','')
-            current_p = self.network_manager.currentServer.get('currentPlayers',0)
-            max_p = self.network_manager.currentServer.get('max_players',0)
+        cs = getattr(self.network_manager, "currentServer", None)
+        if cs is not None and cs.get('name'):
+            server_name = cs.get('name', '')
+            current_p = cs.get('currentPlayers', 0)
+            max_p = cs.get('max_players', 0)
         elif getattr(self, "selectedServer", None):
-            server_name = self.selectedServer.get('name','')
-            current_p = self.selectedServer.get('currentPlayers',0)
-            max_p = self.selectedServer.get('max_players',0)
+            server_name = self.selectedServer.get('name', '')
+            current_p = self.selectedServer.get('currentPlayers', 0)
+            max_p = self.selectedServer.get('max_players', 0)
 
         # Tipografía más grande y bonita
         info_font = self.get_font(24) 
@@ -936,7 +935,6 @@ class   UIManager:
             # Procesamos el hover y dibujamos para que asimile la original_image correcta
             self.TOGGLE_CHAT_BUTTON.check_hover(MENU_MOUSE_POS)
             self.TOGGLE_CHAT_BUTTON.update(self.SCREEN)
-        # ─────────────────────────────────────────────────────────────────────
 
         # Posicionamos el botón
         chat_x = self.SCREEN_WIDTH // 2
@@ -1053,7 +1051,7 @@ class   UIManager:
             self.LOBBY_BACK_BUTTON.text_rect.center = self.LOBBY_BACK_BUTTON.rect.center
         self.LOBBY_BACK_BUTTON.check_hover(MENU_MOUSE_POS)
         self.LOBBY_BACK_BUTTON.update(self.SCREEN)
-        
+
         # Mostrar aviso de conexión (si existe) centrado en la pantalla
         try:
             self.avisoDeConexion(getattr(self.network_manager, 'mensaje', ''), getattr(self.network_manager, 'tiempoDelMensaje', 0))
@@ -1062,6 +1060,7 @@ class   UIManager:
             pass
         
         return MENU_MOUSE_POS
+
 
     ####################CAMBIOS PARA EL MENSAJE EN EL LOBBY##################################
     def lobbyMessage(self, text, max_chars = 40):
@@ -1482,6 +1481,17 @@ o Descartar: Colocar una carta boca arriba en el centro de la mesa para finaliza
     
     def process_received_messages(self):
         """Procesa los mensajes recividos de la red"""
+        # También procesar mensajes de la cola incoming_messages (redundancia con receivedData)
+        try:
+            incoming = self.network_manager.get_incoming_messages()
+            for msg_type, msg_data in incoming:
+                if msg_type == "UPDATE_PLAYERS" and isinstance(msg_data, dict):
+                    players_data = msg_data.get("players")
+                    if players_data is not None:
+                        print("Recibiendo lista de jugadores desde la cola")
+        except Exception:
+            pass
+
         if hasattr(self.network_manager,'receivedData') and self.network_manager.receivedData:
             with self.network_manager.lock:
                 data = self.network_manager.receivedData
@@ -1703,4 +1713,4 @@ o Descartar: Colocar una carta boca arriba en el centro de la mesa para finaliza
             
             pygame.display.flip()
             clock.tick(60)       
-        
+           
