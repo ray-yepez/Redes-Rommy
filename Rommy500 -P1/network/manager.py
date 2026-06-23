@@ -138,7 +138,7 @@ class NetworkManager:
     @property
     def connected_players(self):
         # Mapea ConnectedPlayer a tupla para la compatibilidad con ui.py (conn, addr, name, id)
-        return [(p.conn, p.addr, p.name, p.player_id) for p in self.state.get_connected_players()]
+        return [(p.conn, p.addr, p.name, p.player_id) for p in self.state.get_connected_players() if p.conn is not None or p.is_host]
     
     @property
     def gameName(self):

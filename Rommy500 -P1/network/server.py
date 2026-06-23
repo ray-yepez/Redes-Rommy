@@ -2,6 +2,7 @@ import socket
 import threading
 import logging
 import time
+import errno
 from typing import Tuple
 from .transport import Transport
 from .state import NetworkState
@@ -9,6 +10,7 @@ from .config import NetworkConfig
 from .types import ConnectedPlayer
 from .exceptions import TimeoutException, ConnectionResetException
 from .constants import MessageType, ConnectionStatus
+from .protocol import validate_message
 
 logger = logging.getLogger(__name__)
 
@@ -44,9 +46,9 @@ class GameServer:
             
             logger.info(f"Servidor iniciado en puerto {self.config.TCP_PORT}")
             
-            # Agregar HOST a lista de jugadores
+            # Agregar HOST a lista de jugadores (sin socket — el host nunca envía/recibe a través de esta entrada)
             host_player = ConnectedPlayer(
-                conn=self.server_socket,
+                conn=None,
                 addr=("localhost", self.config.TCP_PORT),
                 name=player_name,
                 player_id=1,
@@ -151,8 +153,8 @@ class GameServer:
                 self._broadcast_notice(f"{player_name} se ha unido a la sala")
                 
             except OSError as e:
-                # Ignorar error de socket cerrado intencionalmente
-                if "10038" in str(e) or "10004" in str(e):
+                if (hasattr(e, 'winerror') and e.winerror in (10038, 10004)) or \
+                   (hasattr(e, 'errno') and e.errno in (errno.EBADF, errno.EINTR)):
                     logger.info("Servidor cerrado, terminando accept_loop")
                     break
                 logger.error(f"Error aceptando: {e}")
@@ -233,11 +235,15 @@ class GameServer:
         """Procesa un mensaje recibido en el Host y lo retransmite al resto."""
         if not isinstance(data, dict):
             return
-            
+
+        valid, error = validate_message(data)
+        if not valid:
+            logger.warning("Mensaje de %s no válido: %s", player.name, error)
+            return
+
         msg_type = data.get("type")
 
-        is_pong = (msg_type == "PONG" or 
-                   (hasattr(MessageType.PONG, 'value') and msg_type == MessageType.PONG.value))
+        is_pong = msg_type == MessageType.PONG.value
 
         if is_pong:
             try:

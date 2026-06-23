@@ -10,6 +10,34 @@ from .exceptions import TimeoutException, ConnectionResetException
 
 logger = logging.getLogger(__name__)
 
+
+def recv_exact(sock: socket.socket, n: int, max_retries: int = 5) -> Optional[bytes]:
+    """Recibe exactamente n bytes desde un socket, reintentando en timeout parcial."""
+    data = b''
+    retries = 0
+
+    while len(data) < n:
+        try:
+            chunk = sock.recv(n - len(data))
+            if not chunk:
+                logger.warning("Socket cerrado remotamente")
+                return None
+            data += chunk
+            retries = 0
+        except socket.timeout:
+            if len(data) == 0:
+                raise
+            retries += 1
+            logger.warning(f"Timeout de paquete roto en recv_exact ({retries}/{max_retries})")
+            if retries >= max_retries:
+                raise TimeoutException(f"Max retries ({max_retries}) alcanzado leyendo datos parciales")
+            continue
+        except Exception as e:
+            logger.warning(f"Error en recv_exact: {e}")
+            return None
+    return data
+
+
 class Transport:
     """Capa de transporte: envío/recepción confiable con pickle."""
     
@@ -75,30 +103,8 @@ class Transport:
                 sock.settimeout(original_timeout)
     
     def _recv_exact(self, sock: socket.socket, n: int) -> Optional[bytes]:
-        """Recibe exactamente n bytes, reintentando en caso de timeout."""
-        data = b''
-        retries = 0
+        """Recibe exactamente n bytes, reintentando en caso de timeout.
         
-        while len(data) < n:
-            try:
-                chunk = sock.recv(n - len(data))
-                if not chunk:
-                    logger.warning("Socket cerrado remotamente")
-                    return None
-                data += chunk
-                retries = 0
-            except socket.timeout:
-                if len(data) == 0:
-                    # Si no hemos leído nada aún, es un timeout normal por inactividad
-                    raise
-                
-                retries += 1
-                logger.warning(f"Timeout de paquete roto en _recv_exact ({retries}/{self.config.MAX_RECV_RETRIES})")
-                if retries >= self.config.MAX_RECV_RETRIES:
-                    raise TimeoutException(f"Max retries ({self.config.MAX_RECV_RETRIES}) alcanzado leyendo datos parciales")
-                continue
-            except Exception as e:
-                logger.error(f"Error en _recv_exact: {e}")
-                return None
-        
-        return data
+        Delega a la función standalone recv_exact con la configuración de reintentos.
+        """
+        return recv_exact(sock, n, max_retries=self.config.MAX_RECV_RETRIES)

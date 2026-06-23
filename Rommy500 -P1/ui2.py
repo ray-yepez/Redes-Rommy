@@ -4177,7 +4177,7 @@ def main(manager_de_red): # <-- Acepta el manager de red
                 elif network_manager.player:
                     network_manager.sendData(msgTomarC)
 
-        process_received_messagesUi2()  
+
         #------ Hasta aqui el bucle de event de PYGAME ------------
         if not running:
             break
@@ -6244,30 +6244,7 @@ def mostrar_cartas_eleccion(screen, cartas_eleccion):
         
         screen.blit(img, carta.rect.topleft)
 
-def process_received_messagesUi2():
-        """Procesa los mensajes recividos de la red"""
-        if hasattr(network_manager,'received_data') and network_manager.received_data:
-            with network_manager.lock:
-                data = network_manager.received_data
-                network_manager.received_data = None  # Limpiar despues de procesar
 
-            #print(f"Procesando mensaje recibido en Ui2.py: {data.get("type")}")
-            
-            if network_manager.is_host:
-                #with threading.Lock:
-                # Si es un mensaje de ESTADO (como el que contiene cartas_disponibles, elecciones, etc.) en ui2
-                if isinstance(data, dict) and data.get("type") in ["ELECTION_CARDS","SELECTION_UPDATE", "ESTADO_CARTAS", "ORDEN_COMPLETO"]:
-                    network_manager.game_state.update(data)
-                    print(f"Estado del juego actualizado: {network_manager.game_state}")
-                elif isinstance(data, dict) and data.get("type") in ["BAJARSE","TOMAR_DESCARTE", "TOMAR_CARTA", "DESCARTE", "COMPRAR_CARTA", "PASAR_DESCARTE", "INICIAR_COMPRA","INSERTAR_CARTA","PASAR_COMPRA","REALIZAR_COMPRA","SWAP_JOKER","SALIR","DESCONEXION"]:
-                    network_manager.moves_gameServer.append(data)
-                # Si es la respuesta del PING...
-                elif isinstance(data, dict) and data.get("type")=="PONG":
-                    pass
-                # Si es otro tipo de estructura/mensaje no clasificado
-                else:
-                    network_manager.incoming_messages.append(("raw", data)) # Opcional: para mensajes no clasificados
-                    #print(f"Mensaje guardado en incoming_messages... raw {network_manager.incoming_messages}")
 
 def recalcular_posiciones_eleccion(cartas_eleccion, WIDTH, HEIGHT):
     """Calcula y asigna el atributo .rect a todas las cartas de elección."""

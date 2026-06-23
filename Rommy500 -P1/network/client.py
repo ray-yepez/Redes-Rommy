@@ -10,6 +10,7 @@ from .config import NetworkConfig
 from .types import ServerInfo
 from .exceptions import TimeoutException, AuthenticationException, ServerFullException
 from .constants import MessageType, ConnectionStatus
+from .protocol import validate_message
 
 logger = logging.getLogger(__name__)
 
@@ -111,12 +112,16 @@ class GameClient:
         """Procesa y rutéa el mensaje recibido del Host."""
         if not isinstance(data, dict):
             return
-            
+
+        valid, error = validate_message(data)
+        if not valid:
+            logger.warning("Mensaje recibido no válido: %s", error)
+            return
+
         msg_type = data.get("type")
 
-        is_ping = (msg_type == "PING" or 
-                   (hasattr(MessageType.PING, 'value') and msg_type == MessageType.PING.value))
-        
+        is_ping = msg_type == MessageType.PING.value
+
         if is_ping: 
             pong = {
                 "type": "PONG",
