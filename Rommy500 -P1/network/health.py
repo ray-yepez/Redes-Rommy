@@ -12,10 +12,11 @@ logger = logging.getLogger(__name__)
 class HealthMonitor:
     """Sistema de monitoreo de conexión (Ping-Pong)."""
     
-    def __init__(self, state: NetworkState, transport: Transport, config: NetworkConfig = None):
+    def __init__(self, state: NetworkState, transport: Transport, config: NetworkConfig = None, server=None):
         self.state = state
         self.transport = transport
         self.config = config or NetworkConfig()
+        self.server = server  # Referencia al GameServer para re-broadcast
     
     def start_health_check(self):
         """Inicia el chequeo periódico en un hilo dedicado."""
@@ -72,3 +73,6 @@ class HealthMonitor:
         # Eliminar jugadores inactivos detectados en este ciclo
         for player_id in disconnected:
             self.state.remove_connected_player(player_id)
+        # Notificar a los clientes restantes sobre la lista actualizada
+        if disconnected and self.server:
+            self.server._broadcast_players()

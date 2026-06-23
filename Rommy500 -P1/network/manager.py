@@ -21,7 +21,7 @@ class NetworkManager:
         self._server = GameServer(self.state, self.transport, self.config)
         self.client = GameClient(self.state, self.transport, self.config)
         self.discovery = Discovery(self.state, self.config)
-        self.health = HealthMonitor(self.state, self.transport, self.config)
+        self.health = HealthMonitor(self.state, self.transport, self.config, self._server)
     
     # === Métodos públicos (INTERFAZ COMPATIBLE) ===
     

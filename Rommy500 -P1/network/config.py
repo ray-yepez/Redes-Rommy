@@ -9,7 +9,7 @@ class NetworkConfig:
     BROADCAST_PORT: int = 5554
     
     # Timeouts (segundos)
-    SOCKET_TIMEOUT: int = 30
+    SOCKET_TIMEOUT: int = 5
     HEALTH_CHECK_INTERVAL: int = 60
     PING_TIMEOUT: int = 5
     CONNECTION_TIMEOUT: int = 10

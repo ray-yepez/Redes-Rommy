@@ -53,7 +53,7 @@ def main():
         else:
             ui_manager.update()
             ctrl_volumen.actualizar_y_dibujar()          
-            
+            pygame.display.flip()
 
     pygame.quit()
     sys.exit()

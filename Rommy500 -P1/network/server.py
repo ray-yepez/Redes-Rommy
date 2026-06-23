@@ -21,6 +21,7 @@ class GameServer:
         self.config = config or NetworkConfig()
         self.server_socket = None
         self.next_player_id = 2  # 1 es el HOST
+        self._broadcast_lock = threading.RLock()  # Lock reentrante para broadcasts
     
     def start(self, game_name: str, player_name: str, max_players: int, room_name: str) -> bool:
         """Inicia el servidor TCP."""
@@ -193,11 +194,16 @@ class GameServer:
     
     def _broadcast_players(self):
         """Notifica a todos los clientes la nueva lista de jugadores."""
-        serializable_players = [(p.addr, p.name, p.player_id) for p in self.state.get_connected_players()]
-        message = {"type": "UPDATE_PLAYERS", "players": serializable_players}
-        disconnected = []
-        for p in self.state.get_connected_players():
-            if not p.is_host:
+        with self._broadcast_lock:
+            # Snapshot ÚNICO para evitar inconsistencia entre serialización e iteración
+            snapshot = self.state.get_connected_players()
+            serializable = [(p.addr, p.name, p.player_id) for p in snapshot]
+            message = {"type": "UPDATE_PLAYERS", "players": serializable}
+
+            disconnected = []
+            for p in snapshot:
+                if p.is_host:
+                    continue
                 try:
                     if not self.transport.send_atomic(p.conn, message):
                         logger.warning(f"No se pudo enviar UPDATE_PLAYERS a {p.name}, marcando como desconectado")
@@ -205,9 +211,13 @@ class GameServer:
                 except Exception as e:
                     logger.error(f"Error enviando UPDATE_PLAYERS a {p.name}: {e}")
                     disconnected.append(p.player_id)
-        for pid in disconnected:
-            self.state.remove_connected_player(pid)
-            logger.info(f"Jugador {pid} eliminado por fallo en broadcast de jugadores")
+
+            if disconnected:
+                for pid in disconnected:
+                    self.state.remove_connected_player(pid)
+                    logger.info(f"Jugador {pid} eliminado por fallo en broadcast de jugadores")
+                # Re-emitir con la lista corregida para que todos tengan el conteo actualizado
+                self._broadcast_players()
     
     def _broadcast_notice(self, mensaje: str):
         """Envia un aviso a todos los clientes conectados, poara que también les aparezca el popup del aviso de conexión (No solo al HOST)"""

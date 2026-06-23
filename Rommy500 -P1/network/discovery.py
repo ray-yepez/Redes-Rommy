@@ -31,7 +31,8 @@ class Discovery:
                     local_ip = "127.0.0.1"
                     try:
                         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                        s.connect(('10.255.255.255', 1))
+                        s.settimeout(2)
+                        s.connect(('8.8.8.8', 80))
                         local_ip = s.getsockname()[0]
                         s.close()
                     except Exception:
@@ -47,8 +48,8 @@ class Discovery:
                     }
                     
                     packet = json.dumps(server_data).encode('utf-8')
-                    # Broadcastear al puerto definido
-                    sock.sendto(packet, ('<broadcast>', self.config.BROADCAST_PORT))
+                    # Broadcastear al puerto definido (255.255.255.255 = broadcast limitado, funciona en cualquier red)
+                    sock.sendto(packet, ('255.255.255.255', self.config.BROADCAST_PORT))
                     logger.debug(f"Broadcast enviado UDP: Sala '{server_data['name']}' IP {server_data['ip']}")
                     
                     time.sleep(self.config.BROADCAST_INTERVAL)

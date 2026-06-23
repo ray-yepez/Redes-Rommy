@@ -25,6 +25,7 @@ class MessageType(Enum):
     DESCONEXION = "DESCONEXION"
     INSERTAR_CARTA = "INSERTAR_CARTA"
     REQUEST_RESYNC = "REQUEST_RESYNC"
+    DEV_HAND_SYNC = "DEV_HAND_SYNC"
 
 class ConnectionStatus(Enum):
     """Estados de conexión."""
